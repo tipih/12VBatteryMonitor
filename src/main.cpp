@@ -57,18 +57,7 @@ static inline uint32_t us_now() { return micros(); }
 
 
 
-
-
-
-
-
-
-
 // ------------------------------ Globals ------------------------------
-//WiFiClient         espClient;
-//PubSubClient       mqtt(espClient);
-//OneWire            oneWire(ONE_WIRE_PIN);
-//DallasTemperature  ds(&oneWire);
 
 Preferences        hallPrefs;  // dedicated NVS bucket for Hall calibration
 
@@ -85,25 +74,6 @@ uint32_t  parkedIdleEnterMs  = 0;    // when we entered Parked&Idle
 
 enum Mode { MODE_ACTIVE=0, MODE_PARKED_IDLE=1 };
 Mode mode = MODE_ACTIVE;
-
-
-// --- BLE globals ---
-
-static NimBLEServer* bleServer =nullptr;
-NimBLECharacteristic* bleChar = nullptr;
-NimBLECharacteristic *chVoltage = nullptr, *chCurrent = nullptr;
-NimBLECharacteristic *chTemperature = nullptr, *chMode = nullptr;
-
-
-
-
-
-
-
-
-
-
-
 
 
 // ------------------------------ OCV → SOC table at 25C ------------------------------
@@ -181,10 +151,17 @@ void setup() {
   bool snapshotOnly = false;
   esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
   bool wokeFromTimer = (cause == ESP_SLEEP_WAKEUP_TIMER);
+ 
+ 
   if (wokeFromTimer) {
+    float V0 = ina.readBusVoltage_V();
+    float I0 = hall.readCurrentA(16);
+    if (isfinite(V0)) last_V_V = V0;
+    last_I_A = I0;
     bool altOn = alternatorOnByV(last_V_V);
     bool activeNow = altOn || (fabsf(last_I_A) > BASE_CONS_THRESH_A);
-    if (!activeNow) snapshotOnly = true;
+    snapshotOnly = !activeNow;
+
   }
   
   // Wi-Fi & MQTT
@@ -217,23 +194,23 @@ void setup() {
     if (mqtt.connected()) {
       Serial.println("Prepare to send");
       char payload[560];
+
       snprintf(payload, sizeof(payload),
-        "{\"mode\":\"parked-sleep\",\"voltage_V\":%.3f,\"current_A\":%.3f,\"temp_C\":%s,"
-        "\"soc_pct\":%.1f,\"soh_pct\":%.1f,"
-        "\"Rint_mOhm\":%s,\"Rint25_mOhm\":%s,\"RintBaseline_mOhm\":%.2f,"
-        "\"alternator_on\":%s,\"up_ms\":%lu}",
-        last_V_V, last_I_A,
-        (isfinite(last_T_C) ? String(last_T_C,1).c_str() : "null"),
-        soc_pct, 100.0f*soh,
-        (isfinite(rint_mOhm)   ? String(rint_mOhm, 2).c_str()   : "null"),
-        (isfinite(rint25_mOhm) ? String(rint25_mOhm, 2).c_str() : "null"),
-        base_mOhm,
-        (alternatorOnByV(last_V_V) ? "true":"false"),
-        (unsigned long)millis());
-      mqtt.publish(MQTT_TOPIC, payload, true);
-      mqtt.loop();
-      delay(50);
-    }
+          "{...,"                                   // your other fields
+          "\"soh_pct\":%s,"                         // guard SOH when no R25
+          "\"Rint_mOhm\":%s,"
+          "\"Rint25_mOhm\":%s,"
+          "\"RintBaseline_mOhm\":%.2f,"
+          "...}",
+          (isfinite(rint25_mOhm) ? String(100.0f * soh, 1).c_str() : "null"),
+          (isfinite(rint_mOhm)   ? String(rint_mOhm, 2).c_str()     : "null"),
+          (isfinite(rint25_mOhm) ? String(rint25_mOhm, 2).c_str()   : "null"),
+          base_mOhm);
+
+            mqtt.publish(MQTT_TOPIC, payload, true);
+            mqtt.loop();
+            delay(50);
+          }
     Serial.println("go to sleep");
     //goToDeepSleep(PARKED_WAKE_INTERVAL_US); // keep disabled while debugging
   }
@@ -256,8 +233,8 @@ void loop() {
     Serial.println(V);
     float I = hall.readCurrentA(32);   // use 32 samples for stability
 
-  
-    learner.ingest(V, I, (isfinite(last_T_C) ? last_T_C : NAN), now);
+
+
   
       
 
@@ -270,8 +247,12 @@ void loop() {
     }
 
     // Rest accumulation for OCV correction
-    if (fabsf(I) < REST_CURRENT_THRESH_A) rest_accum_s += (now - lastSampleMs) / 1000.0f;
-    else                                  rest_accum_s  = 0.0f;
+
+    if (fabsf(I) < REST_CURRENT_THRESH_A && !alternatorOnByV(V))
+        rest_accum_s += (now - lastSampleMs) / 1000.0f;
+    else
+        rest_accum_s = 0.0f;
+
 
     // Parked/Idle detection
     bool altOn    = alternatorOnByV(V);
@@ -291,18 +272,21 @@ void loop() {
         mqtt.publish(MQTT_TOPIC, "{\"mode\":\"parked-idle\"}", true);
         mqtt.loop();
       }
-          if (isfinite(V)) last_V_V = V;
-    
-    last_I_A      = I;
-    lastSampleMs  = now;
     }
+
 
     // Clamp SOC
     if (!isfinite(soc_pct)) soc_pct = 50.0f;
     soc_pct = fmaxf(0.0f, fminf(100.0f, soc_pct));
-    
-    last_I_A      = I;
-    lastSampleMs  = now;
+
+    // Update “last” values once per tick (canonical spot)
+    if (isfinite(V)) last_V_V = V;
+    last_I_A     = I;
+    lastSampleMs = now;
+
+    // Feed learner with the current sample (either V/I or last_*)
+    learner.ingest(last_V_V, last_I_A, (isfinite(last_T_C) ? last_T_C : NAN), now);
+
   
   
   }
@@ -310,11 +294,20 @@ void loop() {
   // --- Temperature @1 Hz ---
   if (now - lastTempMs >= TEMP_INTERVAL_MS) {
     float tC = ds.readTempC();
-    Serial.print("Temperature ");
-    Serial.println(tC);
     if (isfinite(tC)) last_T_C = tC;
-    lastTempMs = now;
+
+
+    bool altOff = !alternatorOnByV(last_V_V);
+    if (altOff && rest_accum_s >= (float)REST_DETECT_SEC && isfinite(last_V_V)) {
+        float v25 = compensateOCVTo25C(last_V_V, last_T_C);
+        float ocvSOC = socFromOCV_25C(v25);
+        soc_pct = 0.8f * soc_pct + 0.2f * ocvSOC;
+        soc_pct = fmaxf(0.0f, fminf(100.0f, soc_pct));
+    }
+    lastTempMs = now;    
+  
   }
+
 
 
   
