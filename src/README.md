@@ -80,5 +80,34 @@ Key parameters:
   - Mode (Active / Parked-Idle)
 - Use any BLE scanner app to view live data.
 
-## 📄 License
-*(Add your license information here, e.g., MIT License)*
+
+## Wiring Diagram
+
+| Component       | ESP32 Pin      |
+|-----------------|---------------|
+| INA226 SDA      | GPIO21        |
+| INA226 SCL      | GPIO22        |
+| Hall Sensor Vout| GPIO34 (ADC)  |
+| Hall Sensor Vref| GPIO35 (ADC)  |
+| DS18B20 Data    | GPIO4         |
+| DS18B20 VCC     | 3.3V          |
+| DS18B20 GND     | GND           |
+
+**Notes:**
+- Add a 4.7kΩ pull-up resistor between DS18B20 Data and 3.3V.
+- INA226 uses I²C bus (SDA/SCL).
+- Hall sensor requires stable reference voltage (Vref).
+
+
+## Hardware Needed
+- ESP32 Development Board
+- [INA226 Current/Voltage Sensor](https://www.ti.com/productor (3.3V variant)
+- DS18B20 Temperature Sensor
+- Pull-up resistor for DS18B20 (4.7kΩ)
+- Automotive-grade wiring and connectors
+
+
+
+
+## 📄 License MIT License
+
