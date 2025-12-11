@@ -105,6 +105,7 @@ Key parameters:
 - DS18B20 Temperature Sensor
 - Pull-up resistor for DS18B20 (4.7kΩ)
 - Automotive-grade wiring and connectors
+- Buck converter for 12V -> 3.3 Volt
 
 
 
