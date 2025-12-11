@@ -28,7 +28,7 @@
 #include <learner/rint_learner.h>
 
 
-
+#define DEBUG_NO_SLEEP 1
 
 
 
@@ -59,7 +59,6 @@ static inline uint32_t us_now() { return micros(); }
 
 // ------------------------------ Globals ------------------------------
 
-Preferences        hallPrefs;  // dedicated NVS bucket for Hall calibration
 
 float     soc_pct            = 90.0f;
 float     rest_accum_s       = 0.0f;
@@ -98,7 +97,16 @@ float compensateOCVTo25C(float vbatt, float tempC) {
   return vbatt + dv;
 }
 
-bool alternatorOnByV(float V) { return (V >= ALT_ON_VOLTAGE_V); }
+bool alternatorOnByV(float V) 
+{ 
+static bool state = false;
+  const float ON  = ALT_ON_VOLTAGE_V;
+  const float OFF = ON - 0.25f;
+  if (state) state = (V >= OFF);
+  else       state = (V >= ON);
+  return state;
+
+}
 
 bool recentStepActivity(float currentNow, uint32_t nowMs) {
   static float prevI = NAN; static uint32_t prevMs = 0;
@@ -128,14 +136,17 @@ void setup() {
   
   Serial.println("Dallas Temp started");
 
-  // Hall zero
-  if (hallZero.load()) {
-    hall.setZero(hallZero.zero_mV);
-    Serial.printf("Loaded HALL zero: %.3f mV", hallZero.zero_mV);
-  } else {
-    float z = hall.captureZeroTrimmedMean(64);
-    hallZero.save(z);
-  }
+
+// --- Hall zero on first boot: apply immediately ---
+if (hallZero.load()) {
+  hall.setZero(hallZero.zero_mV);
+  Serial.printf("Loaded HALL zero: %.3f mV\n", hallZero.zero_mV);
+} else {
+  float z = hall.captureZeroTrimmedMean(64);
+  hall.setZero(z);            // <-- apply now
+  hallZero.save(z);           // persist
+}
+
 
 
   // Temperature seed
@@ -191,28 +202,32 @@ void setup() {
 
 
 
-    if (mqtt.connected()) {
-      Serial.println("Prepare to send");
-      char payload[560];
 
-      snprintf(payload, sizeof(payload),
-          "{...,"                                   // your other fields
-          "\"soh_pct\":%s,"                         // guard SOH when no R25
-          "\"Rint_mOhm\":%s,"
-          "\"Rint25_mOhm\":%s,"
-          "\"RintBaseline_mOhm\":%.2f,"
-          "...}",
-          (isfinite(rint25_mOhm) ? String(100.0f * soh, 1).c_str() : "null"),
-          (isfinite(rint_mOhm)   ? String(rint_mOhm, 2).c_str()     : "null"),
-          (isfinite(rint25_mOhm) ? String(rint25_mOhm, 2).c_str()   : "null"),
-          base_mOhm);
+      TelemetryFrame tf {
+        .mode = "snapshot",
+        .V = last_V_V, .I = last_I_A, .T = last_T_C,
+        .soc_pct = soc_pct, .soh_pct = isfinite(rint25_mOhm) ? soh * 100.0f : NAN,
+        .Rint_mOhm = rint_mOhm, .Rint25_mOhm = rint25_mOhm,
+        .RintBaseline_mOhm = base_mOhm,
+        .alternator_on = alternatorOnByV(last_V_V),
+        .rest_s = (uint32_t)rest_accum_s,
+        .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
+        .up_ms = millis(),
+        .hasRint = isfinite(rint_mOhm),
+        .hasRint25 = isfinite(rint25_mOhm)
+      };
+      char payload[700];
+      if (buildTelemetryJson(tf, payload, sizeof(payload))) {
+        mqtt.publish(MQTT_TOPIC, payload, true);
+        mqtt.loop();
+      }
 
-            mqtt.publish(MQTT_TOPIC, payload, true);
-            mqtt.loop();
-            delay(50);
-          }
     Serial.println("go to sleep");
-    //goToDeepSleep(PARKED_WAKE_INTERVAL_US); // keep disabled while debugging
+
+    #ifndef DEBUG_NO_SLEEP
+      goToDeepSleep(PARKED_WAKE_INTERVAL_US);
+    #endif
+
   }
 }
 
