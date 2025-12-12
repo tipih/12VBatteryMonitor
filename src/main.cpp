@@ -373,11 +373,11 @@ void loop() {
     if (buildTelemetryJson(tf, payload, sizeof(payload))) {
       Serial.printf("Payload length: %u", (unsigned)strlen(payload));
       Serial.println("");
-      
+
       // Call loop() to keep connection alive before publish
       mqtt.loop();
       delay(10);
-      
+
       mqtt.publish(MQTT_TOPIC, payload, false);
       mqtt.loop();
     }
