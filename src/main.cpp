@@ -50,7 +50,7 @@ OcvEstimator ocvEst;  // Static helper class
 
 
 // ==================== Zeroing =====================
-static float zero_mV = 0.0f;   // stored offset (Δ at zero current)
+// static float zero_mV = 0.0f;   // stored offset (Δ at zero current)
 
 
 // ------------------------------ Globals ------------------------------
@@ -93,28 +93,8 @@ float compensateOCVTo25C(float vbatt, float tempC) {
   return vbatt + dv;
 }
 
-bool alternatorOnByV(float V)
-{
-  static bool state = false;
-  const float ON = ALT_ON_VOLTAGE_V;
-  const float OFF = ON - 0.25f;
-  if (state) state = (V >= OFF);
-  else       state = (V >= ON);
-  return state;
-
-}
-
-bool recentStepActivity(float currentNow, uint32_t nowMs) {
-  static float prevI = NAN; static uint32_t prevMs = 0;
-  bool active = false;
-  if (isfinite(prevI)) {
-    float dI = fabsf(currentNow - prevI);
-    uint32_t dt = nowMs - prevMs;
-    if (dI >= STEP_ACTIVITY_DI_A && dt <= STEP_ACTIVITY_WINDOW_MS) active = true;
-  }
-  prevI = currentNow; prevMs = nowMs;
-  return active;
-}
+// Note: alternator/step-activity detection is implemented in
+// `BatteryStateDetector` (stateDetector) — use its methods.
 
 
 
@@ -167,7 +147,7 @@ void setup() {
     float I0 = hall.readCurrentA(16);
     if (isfinite(V0)) last_V_V = V0;
     last_I_A = I0;
-    bool altOn = alternatorOnByV(last_V_V);
+    bool altOn = stateDetector.alternatorOn(last_V_V);
     bool activeNow = altOn || (fabsf(last_I_A) > BASE_CONS_THRESH_A);
     snapshotOnly = !activeNow;
   }
@@ -214,7 +194,7 @@ void setup() {
       .Rint_mOhm = isfinite(rint_mOhm) ? rint_mOhm : base_mOhm,
       .Rint25_mOhm = isfinite(rint25_mOhm) ? rint25_mOhm : base_mOhm,
       .RintBaseline_mOhm = base_mOhm,
-      .alternator_on = alternatorOnByV(last_V_V),
+      .alternator_on = stateDetector.alternatorOn(last_V_V),
       .rest_s = (uint32_t)rest_accum_s,
       .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
       .up_ms = millis(),
@@ -268,15 +248,15 @@ void loop() {
 
     // Rest accumulation for OCV correction
 
-    if (fabsf(I) < REST_CURRENT_THRESH_A && !alternatorOnByV(V))
+    if (fabsf(I) < REST_CURRENT_THRESH_A && !stateDetector.alternatorOn(V))
       rest_accum_s += (now - lastSampleMs) / 1000.0f;
     else
       rest_accum_s = 0.0f;
 
 
     // Parked/Idle detection
-    bool altOn = alternatorOnByV(V);
-    bool activity = recentStepActivity(I, now);
+    bool altOn = stateDetector.alternatorOn(V);
+    bool activity = stateDetector.hasRecentActivity(I, now);
     if (!altOn && fabsf(I) < BASE_CONS_THRESH_A && !activity) {
       lowCurrentAccum_s += (now - lastSampleMs) / 1000.0f;
     }
@@ -318,7 +298,7 @@ void loop() {
     if (isfinite(tC)) last_T_C = tC;
 
 
-    bool altOff = !alternatorOnByV(last_V_V);
+    bool altOff = !stateDetector.alternatorOn(last_V_V);
     if (altOff && rest_accum_s >= (float)REST_DETECT_SEC && isfinite(last_V_V)) {
       float v25 = compensateOCVTo25C(last_V_V, last_T_C);
       float ocvSOC = socFromOCV_25C(v25);
