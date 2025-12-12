@@ -3,14 +3,12 @@
 #include <secret.h>
 // ------------------------------ USER CONFIG ------------------------------
 
-
-const char* MQTT_HOST       = "192.168.0.54";
-const uint16_t MQTT_PORT    = 1883;
-const char* MQTT_CLIENT_ID  = "esp32-batt-hybrid-5h-debug-1";
-
-
-const char* MQTT_TOPIC      = "car/battery/telemetry";       // main telemetry
-const char* MQTT_DBG_TOPIC  = "car/battery/debug/rint";      // debug traces
+// MQTT configuration (declared here, defined in app_config.cpp to avoid multiple definitions)
+extern const char* MQTT_HOST;
+extern const uint16_t MQTT_PORT;
+extern const char* MQTT_CLIENT_ID;
+extern const char* MQTT_TOPIC;
+extern const char* MQTT_DBG_TOPIC;
 
 const float BATTERY_CAPACITY_AH   = 70.0f;    // adjust to your battery
 const float INITIAL_BASELINE_mOHM = 10.0f;    // known-good baseline
@@ -25,7 +23,7 @@ constexpr int   PIN_VREF = 35;
 constexpr bool  HAVE_VREF_PIN = true;
 constexpr int   ADC_BITS = 12;
 constexpr auto  ADC_ATTEN = ADC_11db;
-constexpr float SENSOR_RATING_A = 200.0f;
+constexpr float SENSOR_RATING_A = 120.0f; //200.0f;
 constexpr int   HALL_SIGN = +1; // + discharge
 
 // DS18B20

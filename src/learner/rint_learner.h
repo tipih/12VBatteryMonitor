@@ -26,7 +26,7 @@ public:
     }
 
     void ingest(float V, float I, float T, uint32_t nowMs) {
-        push({V, I, T, nowMs});
+        push({ V, I, T, nowMs });
         tryDetectAndLearn(nowMs);
     }
 
@@ -35,7 +35,7 @@ public:
     float lastRint25_mOhm() const { return _lastRint25_mOhm; }
 
     float currentSOH() const {
-        if (_lastRint25_mOhm <= 0.0f) return 1.0f;
+        if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f) return 1.0f;
         float soh = _baseline_mOhm / _lastRint25_mOhm;
         if (soh < 0.0f) soh = 0.0f;
         if (soh > 1.0f) soh = 1.0f;
@@ -68,7 +68,7 @@ private:
     float _lastRint_mOhm = NAN;
     float _lastRint25_mOhm = NAN;
     uint32_t _lastBaselineUpdateMs = 0;
-    float _recentR25[MED_WINDOW] = {0};
+    float _recentR25[MED_WINDOW] = { 0 };
     int _recentCount = 0;
     DebugPublisher* _dbg = nullptr;
     Preferences prefs;
@@ -136,7 +136,8 @@ private:
             }
             outIdx = std::min(_count - 1, anchorBackIdx + 20);
             return true;
-        } else {
+        }
+        else {
             int b = anchorBackIdx;
             Sample s;
             while (b >= 0) {
@@ -176,8 +177,8 @@ private:
             if (_dbg && _dbg->ok()) {
                 char js[256];
                 snprintf(js, sizeof(js),
-                         R"({"event":"step_detected","preEnd":%d,"postStart":%d,"dI":%.3f,"preIdx":%d,"postIdx":%d})",
-                         preEnd, postStart, dI, preStart, postEnd);
+                    R"({"event":"step_detected","preEnd":%d,"postStart":%d,"dI":%.3f,"preIdx":%d,"postIdx":%d})",
+                    preEnd, postStart, dI, preStart, postEnd);
                 _dbg->send(js, "step_detected");
             }
             return true;
@@ -188,7 +189,8 @@ private:
     void addRecentR25(float v) {
         if (_recentCount < MED_WINDOW) {
             _recentR25[_recentCount++] = v;
-        } else {
+        }
+        else {
             for (int i = 1; i < MED_WINDOW; i++) _recentR25[i - 1] = _recentR25[i];
             _recentR25[MED_WINDOW - 1] = v;
         }
@@ -233,8 +235,8 @@ private:
         if (_dbg && _dbg->ok()) {
             char js[320];
             snprintf(js, sizeof(js),
-                     R"({"event":"rint_computed","dV":%.4f,"dI":%.3f,"R_mOhm":%.2f,"R25_mOhm":%.2f,"Tmean_C":%.1f,"preV":%.3f,"preI":%.3f,"postV":%.3f,"postI":%.3f})",
-                     dV, dI, R_mOhm, R25_mOhm, Tmean, pre.v, pre.i, post.v, post.i);
+                R"({"event":"rint_computed","dV":%.4f,"dI":%.3f,"R_mOhm":%.2f,"R25_mOhm":%.2f,"Tmean_C":%.1f,"preV":%.3f,"preI":%.3f,"postV":%.3f,"postI":%.3f})",
+                dV, dI, R_mOhm, R25_mOhm, Tmean, pre.v, pre.i, post.v, post.i);
             _dbg->send(js, "rint_computed");
         }
         addRecentR25(R25_mOhm);
@@ -258,8 +260,8 @@ private:
         if (_dbg && _dbg->ok()) {
             char js[320];
             snprintf(js, sizeof(js),
-                     R"({"event":"baseline_update","old":%.2f,"cand":%.2f,"delta":%.2f,"alpha":%.3f,"proposed":%.2f,"capped":%.2f,"riseCap":%.3f,"fallCap":%.3f})",
-                     _baseline_mOhm, candidate_mOhm, delta, alpha, proposed, capped, riseCap, fallCap);
+                R"({"event":"baseline_update","old":%.2f,"cand":%.2f,"delta":%.2f,"alpha":%.3f,"proposed":%.2f,"capped":%.2f,"riseCap":%.3f,"fallCap":%.3f})",
+                _baseline_mOhm, candidate_mOhm, delta, alpha, proposed, capped, riseCap, fallCap);
             _dbg->send(js, "baseline_update");
         }
         _baseline_mOhm = capped;
@@ -271,8 +273,8 @@ private:
         if (!(_dbg && _dbg->ok())) return;
         char js[192];
         snprintf(js, sizeof(js),
-                 R"({"event":"step_rejected","reason":"%s","a":%.4f,"b":%.4f})",
-                 reason, a, b);
+            R"({"event":"step_rejected","reason":"%s","a":%.4f,"b":%.4f})",
+            reason, a, b);
         _dbg->send(js, "step_rejected");
     }
 };
