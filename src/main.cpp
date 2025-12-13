@@ -29,8 +29,11 @@
 #include <battery/state_detector.h>
 #include <battery/ocv_estimator.h>
 
-
-#define DEBUG_NO_SLEEP 1
+#define DEBUG_POWER_MANAGEMENT 1
+#define DEBUG_STATE_DETECTOR 1
+//#define DEBUG_NO_SLEEP 1
+#define DEBUG_PARKED_IDLE 1
+//#define DEBUG_HALL_SENSOR 1
 
 
 
@@ -231,7 +234,7 @@ void loop() {
     float V = ina.readBusVoltage_V();
     //    Serial.print("Voltage ");
     //    Serial.println(V);
-    float I = hall.readCurrentA(32);   // use 32 samples for stability
+    float I = hall.readCurrentA(64);   // use 64 samples for better stability
 
 
 
@@ -257,8 +260,23 @@ void loop() {
     // Parked/Idle detection
     bool altOn = stateDetector.alternatorOn(V);
     bool activity = stateDetector.hasRecentActivity(I, now);
+
+#ifdef DEBUG_STATE_DETECTOR
+    Serial.print("StateDetector: ");
+    Serial.print("altOn=");
+    Serial.print(altOn ? "true" : "false");
+    Serial.print(", activity=");
+    Serial.println(activity ? "true" : "false");
+#endif
+    Serial.print("!altOn && fabsf(I):  ");
+    Serial.print((!altOn && fabsf(I)));
+
     if (!altOn && fabsf(I) < BASE_CONS_THRESH_A && !activity) {
       lowCurrentAccum_s += (now - lastSampleMs) / 1000.0f;
+      Serial.print(":  lowCurrentAccum_s=");
+      Serial.print(lowCurrentAccum_s);
+      Serial.print(": Mode ");
+      Serial.println((mode == MODE_ACTIVE) ? "ACTIVE" : "PARKED-IDLE");
     }
     else {
       lowCurrentAccum_s = 0.0f;
@@ -364,10 +382,12 @@ void loop() {
 
 
     ble.update(last_V_V, last_I_A, last_T_C, tf.mode);
+#if DEBUG_POWER_MANAGEMENT
     Serial.print("Voltage:");
     Serial.print(last_V_V);
     Serial.print(", Current:");
-    Serial.print(last_I_A);
+    Serial.println(last_I_A);
+#endif
 
 
     if (mqtt.connected()) {
@@ -378,10 +398,15 @@ void loop() {
 
   // --- 5h timer: Parked&Idle → Deep Sleep (10 min cadence) ---
   if (mode == MODE_PARKED_IDLE) {
-    Serial.print("Parked&Idle time (s): ");
-    Serial.print("mode=");
-    Serial.print((mode == MODE_ACTIVE) ? "active" : "parked-idle");
-    Serial.print(", lowCurrentAccum_s=");
+#if DEBUG_PARKED_IDLE
+    static uint32_t lastParkedPrintMs = 0;
+    if (now - lastParkedPrintMs >= 1000) {
+      Serial.print("Parked&Idle time (s): ");
+      Serial.print((now - parkedIdleEnterMs) / 1000);
+      Serial.println();
+      lastParkedPrintMs = now;
+    }
+#endif
 
     if ((now - parkedIdleEnterMs) >= PARKED_IDLE_MAX_MS) {
       if (WiFi.status() == WL_CONNECTED && mqtt.connected()) {

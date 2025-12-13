@@ -48,8 +48,8 @@ const float REF_TEMP_C = 25.0f;
 const float TEMP_ALPHA_PER_C = 0.0030f; // ≈0.3%/°C
 
 // ------------------ Parked/Idle detection & sleep policy ------------------
-const float    BASE_CONS_THRESH_A = 0.25f; // quiescent I threshold (parked/idle)
-const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 20 * 60; // need 20 min quiet to enter Parked&Idle
+const float    BASE_CONS_THRESH_A = 0.5f; // quiescent I threshold (parked/idle)
+const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 2 * 60;  //20 * 60; // need 20 min quiet to enter Parked&Idle "CHANGE FOR TESTING"
 const float    STEP_ACTIVITY_DI_A = 1.5f;    // ΔI>=1.5A counts as activity
 const uint32_t STEP_ACTIVITY_WINDOW_MS = 200;     // within this time window
 // 5-hour timer once Parked&Idle begins
