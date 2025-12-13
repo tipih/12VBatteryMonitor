@@ -49,13 +49,13 @@ const float TEMP_ALPHA_PER_C = 0.0030f; // ≈0.3%/°C
 
 // ------------------ Parked/Idle detection & sleep policy ------------------
 const float    BASE_CONS_THRESH_A = 0.5f; // quiescent I threshold (parked/idle)
-const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 2 * 60;  //20 * 60; // need 20 min quiet to enter Parked&Idle "CHANGE FOR TESTING"
+const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 5 * 60;  // need 5 min quiet to enter Parked&Idle
 const float    STEP_ACTIVITY_DI_A = 1.5f;    // ΔI>=1.5A counts as activity
 const uint32_t STEP_ACTIVITY_WINDOW_MS = 200;     // within this time window
-// 5-hour timer once Parked&Idle begins
-const uint32_t PARKED_IDLE_MAX_MS = 5UL * 60UL * 60UL * 1000UL; // 5 h
+// 1 hour timer once Parked&Idle begins
+const uint32_t PARKED_IDLE_MAX_MS = 20ULL * 60ULL * 1000000ULL; // 20 min awake/idle before deep sleep
 // Deep sleep cadence while parked
-const uint64_t PARKED_WAKE_INTERVAL_US = 10ULL * 60ULL * 1000000ULL; // 10 min
+const uint64_t PARKED_WAKE_INTERVAL_US = 5ULL * 60ULL * 1000000ULL; // 5 min deep sleep
 
 //BLE
 static const char* BLE_DEVICE_NAME = "ESP32-BattMon";
