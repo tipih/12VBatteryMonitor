@@ -229,8 +229,8 @@ void loop() {
   // --- V/I sampling ---
   if (now - lastSampleMs >= sampleInterval) {
     float V = ina.readBusVoltage_V();
-    Serial.print("Voltage ");
-    Serial.println(V);
+    //    Serial.print("Voltage ");
+    //    Serial.println(V);
     float I = hall.readCurrentA(32);   // use 32 samples for stability
 
 
@@ -319,15 +319,15 @@ void loop() {
   if (now - lastPublishMs >= publishInterval) {
 
     if (!wifi.connected()) {
-      Serial.println("WiFi not connected, try connect");
+      //Serial.println("WiFi not connected, try connect");
       wifi.connectSmart(WIFI_SSID, WIFI_PASSWORD, 10000, 10);
     }
     if (wifi.connected() && !mqtt.connected()) {
-      Serial.println("MQTT not connected, try connect");
+      //Serial.println("MQTT not connected, try connect");
       mqtt.ensureConnected(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS);
     }
 
-    Serial.println("prepare to send");
+    //Serial.println("prepare to send");
 
     bool altOn = stateDetector.alternatorOn(last_V_V);
     float lastRint = learner.lastRint_mOhm();
@@ -351,8 +351,8 @@ void loop() {
 
     char payload[700];
     if (buildTelemetryJson(tf, payload, sizeof(payload))) {
-      Serial.printf("Payload length: %u", (unsigned)strlen(payload));
-      Serial.println("");
+      //Serial.printf("Payload length: %u", (unsigned)strlen(payload));
+      //Serial.println("");
 
       // Call loop() to keep connection alive before publish
       mqtt.loop();
@@ -364,6 +364,11 @@ void loop() {
 
 
     ble.update(last_V_V, last_I_A, last_T_C, tf.mode);
+    Serial.print("Voltage:");
+    Serial.print(last_V_V);
+    Serial.print(", Current:");
+    Serial.print(last_I_A);
+
 
     if (mqtt.connected()) {
 

@@ -2,7 +2,7 @@
 #pragma once
 #include <Arduino.h>
 #include <PubSubClient.h>
-#define debugMqttMgr 1
+#define debugMqttMgr 0
 
 class MqttMgr {
 public:

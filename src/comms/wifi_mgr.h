@@ -2,7 +2,7 @@
 #pragma once
 #include <Arduino.h>
 #include <WiFi.h>
-#define debugWiFiMgr 1
+#define debugWiFiMgr 0
 
 class WiFiMgr {
 public:
