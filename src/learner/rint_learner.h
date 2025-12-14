@@ -47,9 +47,9 @@ private:
     static constexpr int RB_CAPACITY = 512;
     static constexpr float I_STEP_MIN_A = 1.8f;
     static constexpr float I_ABS_MIN_A = 2.0f;
-    static constexpr uint32_t STEP_WINDOW_MS = 120;
+    static constexpr uint32_t STEP_WINDOW_MS = 1000;  // Widened for 500ms sampling
     static constexpr uint32_t STEP_SEPARATION_MS = 100;
-    static constexpr uint32_t SCAN_BACK_MS = 800;
+    static constexpr uint32_t SCAN_BACK_MS = 2000;  // Extended lookback window
     static constexpr float MAX_EVENT_dV_V = 0.90f;
     static constexpr float MAX_EVENT_dI_A = 60.0f;
     static constexpr float EWMA_UP_ALPHA = 0.10f;
@@ -218,7 +218,7 @@ private:
         if (!findStepWindows(preStart, preEnd, postStart, postEnd)) return;
         Stats pre = avgOverBackRange(preStart, preEnd);
         Stats post = avgOverBackRange(postStart, postEnd);
-        if (pre.n < 4 || post.n < 4) { debugReject("few_samples", pre.n, post.n); return; }
+        if (pre.n < 3 || post.n < 3) { debugReject("few_samples", pre.n, post.n); return; }
         if (alternatorOn(pre) || alternatorOn(post)) { debugReject("alt_on", pre.v, post.v); return; }
         float dI = post.i - pre.i;
         float dV = post.v - pre.v;

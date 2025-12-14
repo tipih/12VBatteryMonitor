@@ -10,8 +10,8 @@ extern const char* MQTT_CLIENT_ID;
 extern const char* MQTT_TOPIC;
 extern const char* MQTT_DBG_TOPIC;
 
-const float BATTERY_CAPACITY_AH = 70.0f;    // adjust to your battery
-const float INITIAL_BASELINE_mOHM = 10.0f;    // known-good baseline
+const float BATTERY_CAPACITY_AH = 9.0f;    // LTX9-4 motorcycle battery //REMEMBER TO UPDATE
+const float INITIAL_BASELINE_mOHM = 35.0f;    // known-good baseline for LTX9-4
 
 // Rest detection for OCV correction
 const float    REST_CURRENT_THRESH_A = 0.2f;     // <= this considered "rest"
@@ -49,11 +49,11 @@ const float TEMP_ALPHA_PER_C = 0.0030f; // ≈0.3%/°C
 
 // ------------------ Parked/Idle detection & sleep policy ------------------
 const float    BASE_CONS_THRESH_A = 0.5f; // quiescent I threshold (parked/idle)
-const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 5 * 60;  // need 5 min quiet to enter Parked&Idle
+const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 2 * 60;  // need 5 min quiet to enter Parked&Idle
 const float    STEP_ACTIVITY_DI_A = 1.5f;    // ΔI>=1.5A counts as activity
 const uint32_t STEP_ACTIVITY_WINDOW_MS = 200;     // within this time window
 // 1 hour timer once Parked&Idle begins
-const uint32_t PARKED_IDLE_MAX_MS = 20ULL * 60ULL * 1000000ULL; // 20 min awake/idle before deep sleep
+const uint64_t PARKED_IDLE_MAX_MS = 20ULL * 60ULL * 1000ULL; // 20 min awake/idle before deep sleep
 // Deep sleep cadence while parked
 const uint64_t PARKED_WAKE_INTERVAL_US = 5ULL * 60ULL * 1000000ULL; // 5 min deep sleep
 

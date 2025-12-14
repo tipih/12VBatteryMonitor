@@ -4,10 +4,11 @@
 #include <NimBLEDevice.h>
 
 struct BleHandles {
-  NimBLECharacteristic* chVoltage{nullptr};
-  NimBLECharacteristic* chCurrent{nullptr};
-  NimBLECharacteristic* chTemperature{nullptr};
-  NimBLECharacteristic* chMode{nullptr};
+  NimBLECharacteristic* chVoltage{ nullptr };
+  NimBLECharacteristic* chCurrent{ nullptr };
+  NimBLECharacteristic* chTemperature{ nullptr };
+  NimBLECharacteristic* chMode{ nullptr };
+  NimBLECharacteristic* chCommand{ nullptr };
 };
 
 class BleMgr {
@@ -18,7 +19,7 @@ public:
   BleHandles& handles() { return _handles; }
 private:
   friend class ServerCallbacks;
-  bool _clientConnected{false};
-  NimBLEServer* _server{nullptr};
+  bool _clientConnected{ false };
+  NimBLEServer* _server{ nullptr };
   BleHandles _handles;
 };

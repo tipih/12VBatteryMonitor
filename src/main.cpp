@@ -30,7 +30,7 @@
 #include <battery/ocv_estimator.h>
 
 #define DEBUG_POWER_MANAGEMENT 1
-#define DEBUG_STATE_DETECTOR 1
+//#define DEBUG_STATE_DETECTOR 1
 //#define DEBUG_NO_SLEEP 1
 #define DEBUG_PARKED_IDLE 1
 //#define DEBUG_HALL_SENSOR 1
@@ -267,16 +267,18 @@ void loop() {
     Serial.print(altOn ? "true" : "false");
     Serial.print(", activity=");
     Serial.println(activity ? "true" : "false");
-#endif
+
     Serial.print("!altOn && fabsf(I):  ");
     Serial.print((!altOn && fabsf(I)));
-
+#endif
     if (!altOn && fabsf(I) < BASE_CONS_THRESH_A && !activity) {
       lowCurrentAccum_s += (now - lastSampleMs) / 1000.0f;
+#ifdef DEBUG_STATE_DETECTOR
       Serial.print(":  lowCurrentAccum_s=");
       Serial.print(lowCurrentAccum_s);
       Serial.print(": Mode ");
       Serial.println((mode == MODE_ACTIVE) ? "ACTIVE" : "PARKED-IDLE");
+#endif
     }
     else {
       lowCurrentAccum_s = 0.0f;
@@ -305,6 +307,15 @@ void loop() {
 
     // Feed learner with the current sample (either V/I or last_*)
     learner.ingest(last_V_V, last_I_A, (isfinite(last_T_C) ? last_T_C : NAN), now);
+
+    // Debug: Show if Rint was calculated
+    static float prevRint = NAN;
+    float currRint = learner.lastRint_mOhm();
+    if (isfinite(currRint) && currRint != prevRint) {
+      Serial.printf("*** NEW RINT CALCULATED: %.2f mOhm (25C: %.2f mOhm) ***\n",
+        currRint, learner.lastRint25_mOhm());
+      prevRint = currRint;
+    }
 
 
 
@@ -352,6 +363,19 @@ void loop() {
     float lastRint25 = learner.lastRint25_mOhm();
     float baseR = learner.baseline_mOhm();
     float soh = learner.currentSOH();
+
+    Serial.print("Mode: ");
+    Serial.print((mode == MODE_ACTIVE) ? "ACTIVE" : "PARKED-IDLE");
+    Serial.print(" %, SOH: ");
+    Serial.print(soh * 100.0f);
+    Serial.printf(" Rint: %.2f mOhm, Rint25: %.2f mOhm, BaseR: %.2f mOhm\n",
+      isfinite(lastRint) ? lastRint : baseR,
+      isfinite(lastRint25) ? lastRint25 : baseR,
+      baseR);
+    Serial.println();
+
+
+
     TelemetryFrame tf{
       .mode = (mode == MODE_ACTIVE ? "active" : "parked-idle"),
       .V = last_V_V, .I = last_I_A, .T = last_T_C,
@@ -386,7 +410,9 @@ void loop() {
     Serial.print("Voltage:");
     Serial.print(last_V_V);
     Serial.print(", Current:");
-    Serial.println(last_I_A);
+    Serial.print(last_I_A);
+    Serial.print(" Time (s): ");
+    Serial.println((now - parkedIdleEnterMs) / 1000);
 #endif
 
 
@@ -403,6 +429,9 @@ void loop() {
     if (now - lastParkedPrintMs >= 1000) {
       Serial.print("Parked&Idle time (s): ");
       Serial.print((now - parkedIdleEnterMs) / 1000);
+      Serial.println();
+      Serial.print("Time to deep sleep (s): ");
+      Serial.print((PARKED_IDLE_MAX_MS - (now - parkedIdleEnterMs)) / 1000);
       Serial.println();
       lastParkedPrintMs = now;
     }
