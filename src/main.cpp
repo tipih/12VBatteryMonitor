@@ -160,7 +160,9 @@ void setup() {
   delay(500);  // Give lwIP time to initialize
 
   // Try WiFi connection in setup (will retry in loop if needed)
-  wifi.connectSmart(WIFI_SSID, WIFI_PASSWORD, /*cooldown*/ 10000, /*attempts*/ 5);
+  // Use 0 cooldown for snapshot mode (deep sleep wakeup) to ensure connection
+  uint32_t wifiCooldown = snapshotOnly ? 0 : 10000;
+  wifi.connectSmart(WIFI_SSID, WIFI_PASSWORD, wifiCooldown, /*attempts*/ 15);
   if (wifi.connected()) {
     mqtt.ensureConnected(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS);
   }
@@ -171,6 +173,15 @@ void setup() {
   gRintDbg.enabled = true;   // set false to silence
   gRintDbg.minIntervalMs = 250;    // per-event rate limit
   learner.begin(INITIAL_BASELINE_mOHM, &gRintDbg); // enable when needed
+
+  // Load SOC from NVM (battmon namespace already opened by learner)
+  Preferences prefs;
+  prefs.begin("battmon", false);
+  soc_pct = prefs.getFloat("soc_pct", 90.0f);
+  if (!isfinite(soc_pct) || soc_pct < 0.0f || soc_pct > 100.0f) {
+    soc_pct = 90.0f;
+  }
+  prefs.end();
 
   uint32_t now = millis();
   lastSampleMs = now;
@@ -204,12 +215,25 @@ void setup() {
       .hasRint = isfinite(rint_mOhm),
       .hasRint25 = isfinite(rint25_mOhm)
     };
+    Serial.println("Publishing snapshot telemetry");
+    Serial.printf("V: %.3f V, I: %.3f A, T: %.1f C, SOC: %.1f %%, SOH: %.1f %%\n",
+      tf.V, tf.I, tf.T, tf.soc_pct, tf.soh_pct);
     char payload[700];
     if (buildTelemetryJson(tf, payload, sizeof(payload))) {
-      mqtt.publish(MQTT_TOPIC, payload, true);
-      mqtt.loop();
+      if (wifi.connected() && mqtt.connected()) {
+        mqtt.publish(MQTT_TOPIC, payload, true);
+        mqtt.loop();
+        delay(100);  // Give time for message to send
+        Serial.println("MQTT message sent successfully");
+      }
+      else {
+        Serial.println("WARNING: WiFi/MQTT not connected, message not sent");
+      }
     }
 
+    // Properly disconnect WiFi before sleep
+    wifi.off();
+    delay(100);
     Serial.println("go to sleep");
 
 #ifndef DEBUG_NO_SLEEP
@@ -246,7 +270,15 @@ void loop() {
       float dt_s = (now - lastSampleMs) / 1000.0f;
       float I_avg = 0.5f * (last_I_A + I);
       float dAh = I_avg * (dt_s / 3600.0f);
+      float oldSOC = soc_pct;
       soc_pct -= (dAh / BATTERY_CAPACITY_AH) * 100.0f;
+      // Save to NVM if SOC changed significantly (avoid excessive writes)
+      if (fabsf(soc_pct - oldSOC) > 0.5f) {
+        Preferences prefs;
+        prefs.begin("battmon", false);
+        prefs.putFloat("soc_pct", soc_pct);
+        prefs.end();
+      }
     }
 
     // Rest accumulation for OCV correction
@@ -331,8 +363,16 @@ void loop() {
     if (altOff && rest_accum_s >= (float)REST_DETECT_SEC && isfinite(last_V_V)) {
       float v25 = compensateOCVTo25C(last_V_V, last_T_C);
       float ocvSOC = socFromOCV_25C(v25);
+      float oldSOC = soc_pct;
       soc_pct = 0.8f * soc_pct + 0.2f * ocvSOC;
       soc_pct = fmaxf(0.0f, fminf(100.0f, soc_pct));
+      // Save to NVM after OCV correction
+      if (fabsf(soc_pct - oldSOC) > 0.5f) {
+        Preferences prefs;
+        prefs.begin("battmon", false);
+        prefs.putFloat("soc_pct", soc_pct);
+        prefs.end();
+      }
     }
     lastTempMs = now;
 
@@ -368,6 +408,8 @@ void loop() {
     Serial.print((mode == MODE_ACTIVE) ? "ACTIVE" : "PARKED-IDLE");
     Serial.print(" %, SOH: ");
     Serial.print(soh * 100.0f);
+    Serial.print(" %, SOC: ");
+    Serial.print(soc_pct);
     Serial.printf(" Rint: %.2f mOhm, Rint25: %.2f mOhm, BaseR: %.2f mOhm\n",
       isfinite(lastRint) ? lastRint : baseR,
       isfinite(lastRint25) ? lastRint25 : baseR,

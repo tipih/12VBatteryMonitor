@@ -22,6 +22,9 @@ public:
             _baseline_mOhm = initialBaseline_mOhm;
             prefs.putFloat("rintBase_mR", _baseline_mOhm);
         }
+        // Load last measured Rint values from NVM
+        _lastRint_mOhm = prefs.getFloat("lastRint_mR", NAN);
+        _lastRint25_mOhm = prefs.getFloat("lastR25_mR", NAN);
         _lastBaselineUpdateMs = millis();
     }
 
@@ -232,6 +235,9 @@ private:
         float R25_mOhm = compTo25C(R_mOhm, Tmean);
         _lastRint_mOhm = R_mOhm;
         _lastRint25_mOhm = R25_mOhm;
+        // Save to NVM for persistence across deep sleep
+        prefs.putFloat("lastRint_mR", R_mOhm);
+        prefs.putFloat("lastR25_mR", R25_mOhm);
         if (_dbg && _dbg->ok()) {
             char js[320];
             snprintf(js, sizeof(js),
