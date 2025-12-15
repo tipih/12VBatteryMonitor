@@ -59,7 +59,7 @@ OcvEstimator ocvEst;  // Static helper class
 // ------------------------------ Globals ------------------------------
 
 
-float     soc_pct = 90.0f;
+float     soc_pct = 50.0f;
 float     rest_accum_s = 0.0f;
 float     last_I_A = 0.0f;
 float     last_V_V = 12.6f;
@@ -218,6 +218,10 @@ void setup() {
     Serial.println("Publishing snapshot telemetry");
     Serial.printf("V: %.3f V, I: %.3f A, T: %.1f C, SOC: %.1f %%, SOH: %.1f %%\n",
       tf.V, tf.I, tf.T, tf.soc_pct, tf.soh_pct);
+
+    // Update BLE characteristics
+    ble.update(tf.V, tf.I, tf.T, "snapshot");
+
     char payload[700];
     if (buildTelemetryJson(tf, payload, sizeof(payload))) {
       if (wifi.connected() && mqtt.connected()) {
@@ -409,7 +413,7 @@ void loop() {
     Serial.print(" %, SOH: ");
     Serial.print(soh * 100.0f);
     Serial.print(" %, SOC: ");
-    Serial.print(soc_pct);
+    Serial.print(soc_pct * 1.0f);
     Serial.printf(" Rint: %.2f mOhm, Rint25: %.2f mOhm, BaseR: %.2f mOhm\n",
       isfinite(lastRint) ? lastRint : baseR,
       isfinite(lastRint25) ? lastRint25 : baseR,
