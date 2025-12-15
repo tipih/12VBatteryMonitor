@@ -1,0 +1,47 @@
+Internal Resistance (Rint) - Core Concept
+What is Rint?
+Internal resistance is the opposition to current flow inside the battery itself. Every battery has internal components (electrodes, electrolyte, connections) that resist current, causing voltage drops under load.
+
+Physical Analogy:
+Think of a battery as a perfect voltage source with a small resistor in series:
+
+The Key Relationship: Ohm's Law
+When current flows, voltage drops across the internal resistance:
+
+How Your Monitor Measures It (ΔV/ΔI Method):
+
+Before step: Measure stable V₁ and I₁ (e.g., 12.6V, 0A)
+After step: Measure stable V₂ and I₂ (e.g., 12.44V, 4A)
+Calculate: Rint = (V₂ - V₁) / (I₂ - I₁) = -0.16V / 4A = 40mΩ
+Why Rint Matters - State of Health (SOH):
+
+Fresh battery (healthy):
+
+Low Rint (~30-35mΩ for LTX9-4)
+Small voltage drop under load
+Good performance
+Aged/degraded battery:
+
+High Rint (~70-100mΩ)
+Large voltage drop under load
+Poor cranking ability, reduced capacity
+SOH Calculation:
+
+Temperature Effect:
+Battery resistance increases in cold weather. Your monitor compensates by normalizing to 25°C:
+
+Why the Learner?
+The baseline (35mΩ) might not match your specific battery. The learner:
+
+Observes many load steps over time
+Identifies the lowest stable Rint (= healthy baseline)
+Updates baseline gradually (10+ minutes of data)
+Provides accurate SOH for your battery
+What Increases Rint?
+
+Sulfation (lead-acid batteries)
+Corrosion on plates
+Electrolyte degradation
+Active material loss
+Age and cycle count
+Monitoring Rint trends over weeks/months predicts when replacement is needed before the battery fails unexpectedly.
