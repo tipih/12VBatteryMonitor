@@ -16,6 +16,17 @@ An embedded system for real-time monitoring of a 12V automotive battery using **
 - **BLE support** for local diagnostics and live data viewing
 - Configurable thresholds and timing in `app_config.h`
 
+## **What's New (Jan 2026)**
+- **BLE Command API:** New writeable BLE command interface accepts simple textual commands (case-insensitive). Examples:
+  - `SET_CAP:12.5` or `SET_CAP 12.5` — set runtime battery capacity (Ah)
+  - `SET_BASE:35.0` or `SET_BASELINE=35.0` — set Rint baseline (mΩ)
+  - Existing commands (CLEAR, RESET) remain supported.
+- **Queued, safe processing:** Commands received over BLE are enqueued and executed in the main loop (avoids blocking the NimBLE task). Call `ble.process()` from your main loop where BLE is updated.
+- **Battery capacity exposed via BLE:** A read/notify characteristic (`chCapacity`) exposes the runtime `batteryCapacityAh` value. See [src/comms/ble_mgr.cpp](src/comms/ble_mgr.cpp).
+- **Runtime persistence:** Settings are persisted to NVS using Preferences. Keys used include `battery_capacity_Ah`, `rintBase_mR` and related Rint values. Reading checks for key existence to avoid noisy NVS "NOT_FOUND" logs. See [src/app_config.cpp](src/app_config.cpp).
+- **MQTT notifications:** When capacity or baseline are changed via BLE the device publishes retained JSON messages to the telemetry `MQTT_TOPIC` so remote systems see the latest values immediately.
+- **Case-insensitive parsing:** BLE command parsing is case-insensitive so `set_cap`, `SET_base`, or `Set_Cap` all work.
+
 ## 🛠 Hardware Requirements
 - ESP32 development board
 - INA226 sensor (I²C bus voltage)

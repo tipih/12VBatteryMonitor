@@ -16,6 +16,16 @@ An embedded system for real-time monitoring of a 12V automotive battery using **
 - **BLE support** for local diagnostics and live data viewing
 - Configurable thresholds and timing in `app_config.h`
 
+## **Developer Notes (BLE / Persistence / MQTT)**
+- **BLE Commands:** The BLE manager now accepts textual commands written to the command characteristic. Commands are parsed case-insensitively. Examples:
+  - `SET_CAP:12.5` — set and persist runtime battery capacity in Ah
+  - `SET_BASE:35.0` — set and persist Rint baseline in mΩ
+  - Formats supported: `CMD:val`, `CMD val`, `CMD=val` (value parsed as float)
+- **Processing model:** BLE write callbacks enqueue commands only. The queued commands are executed in `BleMgr::process()` which must be called regularly from the main loop (see [src/main.cpp](src/main.cpp)). This avoids blocking NimBLE callbacks.
+- **Persistence & keys:** Runtime settings are stored using Preferences (NVS). Keys include `battery_capacity_Ah` and `rintBase_mR`. `loadBatteryCapacityFromPrefs()` checks for key existence before reading to avoid NVS NOT_FOUND logs. See [src/app_config.cpp](src/app_config.cpp).
+- **MQTT publishes:** When capacity or baseline change via BLE, the code publishes retained JSON messages to the configured `MQTT_TOPIC` so remote listeners immediately receive the updated values.
+- **Files to inspect:** BLE handling and characteristics: [src/comms/ble_mgr.cpp](src/comms/ble_mgr.cpp), runtime config: [src/app_config.cpp](src/app_config.cpp), Rint learner API: [src/learner/rint_learner.h](src/learner/rint_learner.h).
+
 ## 🛠 Hardware Requirements
 - ESP32 development board
 - INA226 sensor (I²C bus voltage)
