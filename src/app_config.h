@@ -10,7 +10,14 @@ extern const char* MQTT_CLIENT_ID;
 extern const char* MQTT_TOPIC;
 extern const char* MQTT_DBG_TOPIC;
 
-const float BATTERY_CAPACITY_AH = 9.0f;    // LTX9-4 motorcycle battery //REMEMBER TO UPDATE
+const float BATTERY_CAPACITY_AH = 90.0f; //9.0f;    // LTX9-4 motorcycle battery //REMEMBER TO UPDATE
+
+// Runtime-overridable battery capacity (Ah). Initialize with compile-time default
+extern float batteryCapacityAh;
+// Load persisted battery capacity from NVM (call from `setup()`)
+void loadBatteryCapacityFromPrefs();
+// Update runtime battery capacity and persist to NVM
+void setBatteryCapacityAh(float ah);
 const float INITIAL_BASELINE_mOHM = 35.0f;    // known-good baseline for LTX9-4
 
 // Rest detection for OCV correction

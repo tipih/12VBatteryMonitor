@@ -173,6 +173,8 @@ void setup() {
   gRintDbg.enabled = true;   // set false to silence
   gRintDbg.minIntervalMs = 250;    // per-event rate limit
   learner.begin(INITIAL_BASELINE_mOHM, &gRintDbg); // enable when needed
+  // Load persisted battery capacity (if previously set via BLE)
+  loadBatteryCapacityFromPrefs();
 
   // Load SOC from NVM (battmon namespace already opened by learner)
   Preferences prefs;
@@ -221,6 +223,7 @@ void setup() {
 
     // Update BLE characteristics
     ble.update(tf.V, tf.I, tf.T, "snapshot", tf.soc_pct, tf.soh_pct);
+    ble.process();
 
     char payload[700];
     if (buildTelemetryJson(tf, payload, sizeof(payload))) {
@@ -270,12 +273,12 @@ void loop() {
 
 
     // Coulomb counting
-    if (BATTERY_CAPACITY_AH > 0) {
+    if (batteryCapacityAh > 0) {
       float dt_s = (now - lastSampleMs) / 1000.0f;
       float I_avg = 0.5f * (last_I_A + I);
       float dAh = I_avg * (dt_s / 3600.0f);
       float oldSOC = soc_pct;
-      soc_pct -= (dAh / BATTERY_CAPACITY_AH) * 100.0f;
+      soc_pct -= (dAh / batteryCapacityAh) * 100.0f;
       // Save to NVM if SOC changed significantly (avoid excessive writes)
       if (fabsf(soc_pct - oldSOC) > 0.5f) {
         Preferences prefs;
@@ -452,6 +455,7 @@ void loop() {
 
 
     ble.update(last_V_V, last_I_A, last_T_C, tf.mode, soc_pct, soh * 100.0f);
+    ble.process();
 #if DEBUG_POWER_MANAGEMENT
     Serial.print("Voltage:");
     Serial.print(last_V_V);

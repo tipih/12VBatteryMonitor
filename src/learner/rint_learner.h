@@ -37,6 +37,21 @@ public:
     float lastRint_mOhm() const { return _lastRint_mOhm; }
     float lastRint25_mOhm() const { return _lastRint25_mOhm; }
 
+    // Manually set the baseline (mOhm) and persist immediately.
+    void setBaseline(float baseline_mOhm) {
+        if (!isfinite(baseline_mOhm) || baseline_mOhm <= 0.1f || baseline_mOhm > 1000.0f) return;
+        _baseline_mOhm = baseline_mOhm;
+        prefs.begin("battmon", false);
+        prefs.putFloat("rintBase_mR", _baseline_mOhm);
+        prefs.end();
+        _lastBaselineUpdateMs = millis();
+        if (_dbg && _dbg->ok()) {
+            char js[128];
+            snprintf(js, sizeof(js), R"({"event":"baseline_set","value":%.3f})", _baseline_mOhm);
+            _dbg->send(js, "baseline_set");
+        }
+    }
+
     float currentSOH() const {
         if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f) return 1.0f;
         float soh = _baseline_mOhm / _lastRint25_mOhm;
@@ -284,3 +299,6 @@ private:
         _dbg->send(js, "step_rejected");
     }
 };
+
+// Global instance declared in main.cpp
+extern RintLearner learner;

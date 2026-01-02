@@ -1,66 +1,91 @@
 
 #include "ble_mgr.h"
 #include <Preferences.h>
+#include <app_config.h>
+#include <comms/mqtt_mgr.h>
+#include "../learner/rint_learner.h"
+
+// mqtt instance declared in main.cpp
+extern MqttMgr mqtt;
 
 class CommandCallbacks : public NimBLECharacteristicCallbacks {
 public:
+  explicit CommandCallbacks(BleMgr* mgr) : _mgr(mgr) {}
   void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override {
     std::string value = pCharacteristic->getValue();
-    Serial.printf("[BLE] Command received: %s\n", value.c_str());
-    
-    if (value == "CLEAR_NVM") {
-      Serial.println("[BLE] Clearing all NVM storage...");
-      Preferences prefs;
-      
-      // Clear battmon namespace (Rint learner data)
-      prefs.begin("battmon", false);
-      prefs.clear();
-      prefs.end();
-      Serial.println("[BLE]   - Cleared 'battmon' namespace");
-      
-      // Clear hall namespace (Hall sensor calibration)
-      prefs.begin("hall", false);
-      prefs.clear();
-      prefs.end();
-      Serial.println("[BLE]   - Cleared 'hall' namespace");
-      
-      pCharacteristic->setValue("NVM_CLEARED");
+    Serial.printf("[BLE] Command received (queued): %s\n", value.c_str());
+    // Make a case-insensitive copy for command matching
+    std::string u = value;
+    for (auto& ch : u) ch = (char)toupper((unsigned char)ch);
+    // Check for SET_CAP command with a numeric parameter
+    if (u.rfind("SET_CAP", 0) == 0) {
+      // Accept formats: "SET_CAP:12.5" or "SET_CAP 12.5" or "SET_CAP=12.5"
+      size_t pos = value.find_first_of(": =", 7);
+      std::string num;
+      if (pos != std::string::npos) num = value.substr(pos + 1);
+      else if (value.size() > 7) num = value.substr(7);
+      float v = NAN;
+      if (!num.empty()) v = atof(num.c_str());
+      if (isfinite(v) && v > 0.0f) {
+        _mgr->enqueueCommand(BleMgr::CMD_SET_CAP, v);
+        pCharacteristic->setValue("QUEUED_SET_CAP");
+        pCharacteristic->notify();
+      }
+      else {
+        pCharacteristic->setValue("BAD_PARAM");
+        pCharacteristic->notify();
+      }
+      return;
+    }
+
+    // Check for SET_BASE or SET_BASELINE to set Rint baseline (mOhm)
+    if (u.rfind("SET_BASE", 0) == 0 || u.rfind("SET_BASELINE", 0) == 0) {
+      size_t pos = value.find_first_of(": =", 9);
+      std::string num;
+      if (pos != std::string::npos) num = value.substr(pos + 1);
+      else if (value.size() > 9) num = value.substr(9);
+      float v = NAN;
+      if (!num.empty()) v = atof(num.c_str());
+      if (isfinite(v) && v > 0.0f) {
+        _mgr->enqueueCommand(BleMgr::CMD_SET_BASE, v);
+        pCharacteristic->setValue("QUEUED_SET_BASE");
+        pCharacteristic->notify();
+      }
+      else {
+        pCharacteristic->setValue("BAD_PARAM");
+        pCharacteristic->notify();
+      }
+      return;
+    }
+
+    if (u == "CLEAR_NVM") {
+      _mgr->enqueueCommand(BleMgr::CMD_CLEAR_NVM);
+      pCharacteristic->setValue("QUEUED_CLEAR_NVM");
       pCharacteristic->notify();
-      Serial.println("[BLE] NVM cleared successfully");
-      
-    } else if (value == "RESET") {
-      Serial.println("[BLE] Resetting device in 2 seconds...");
-      pCharacteristic->setValue("RESETTING");
+    }
+    else if (u == "RESET") {
+      _mgr->enqueueCommand(BleMgr::CMD_RESET);
+      pCharacteristic->setValue("QUEUED_RESET");
       pCharacteristic->notify();
-      delay(2000);
-      ESP.restart();
-      
-    } else if (value == "CLEAR_RESET") {
-      Serial.println("[BLE] Clearing NVM and resetting device...");
-      Preferences prefs;
-      prefs.begin("battmon", false);
-      prefs.clear();
-      prefs.end();
-      prefs.begin("hall", false);
-      prefs.clear();
-      prefs.end();
-      Serial.println("[BLE] NVM cleared, resetting in 2 seconds...");
-      pCharacteristic->setValue("NVM_CLEARED_RESETTING");
+    }
+    else if (u == "CLEAR_RESET") {
+      _mgr->enqueueCommand(BleMgr::CMD_CLEAR_RESET);
+      pCharacteristic->setValue("QUEUED_CLEAR_RESET");
       pCharacteristic->notify();
-      delay(2000);
-      ESP.restart();
-      
-    } else {
-      Serial.printf("[BLE] Unknown command: %s\n", value.c_str());
+    }
+    else {
+      Serial.printf("[BLE] Unknown command (queued): %s\n", value.c_str());
       pCharacteristic->setValue("UNKNOWN_CMD");
       pCharacteristic->notify();
     }
   }
+private:
+  BleMgr* _mgr;
 };
 
 class ServerCallbacks : public NimBLEServerCallbacks {
 public:
-  explicit ServerCallbacks(BleMgr* mgr): _mgr(mgr) {}
+  explicit ServerCallbacks(BleMgr* mgr) : _mgr(mgr) {}
   void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
     _mgr->_clientConnected = true;
     Serial.println("[BLE] Client connected");
@@ -71,7 +96,7 @@ public:
     NimBLEDevice::startAdvertising();
   }
 
-  private:
+private:
   BleMgr* _mgr;
 };
 
@@ -82,22 +107,24 @@ void BleMgr::begin(const char* deviceName) {
   _server->setCallbacks(new ServerCallbacks(this));
 
   auto svc = _server->createService("a94f0001-12d3-11ee-be56-0242ac120002");
-  _handles.chVoltage     = svc->createCharacteristic("a94f0002-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  _handles.chCurrent     = svc->createCharacteristic("a94f0003-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chVoltage = svc->createCharacteristic("a94f0002-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chCurrent = svc->createCharacteristic("a94f0003-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   _handles.chTemperature = svc->createCharacteristic("a94f0004-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  _handles.chMode        = svc->createCharacteristic("a94f0005-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  _handles.chCommand     = svc->createCharacteristic("a94f0006-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
-  _handles.chSOC         = svc->createCharacteristic("a94f0007-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  _handles.chSOH         = svc->createCharacteristic("a94f0008-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chMode = svc->createCharacteristic("a94f0005-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chCommand = svc->createCharacteristic("a94f0006-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chSOC = svc->createCharacteristic("a94f0007-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chSOH = svc->createCharacteristic("a94f0008-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chCapacity = svc->createCharacteristic("a94f0009-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
   _handles.chVoltage->createDescriptor("2901")->setValue("Battery Voltage (V)");
   _handles.chCurrent->createDescriptor("2901")->setValue("Battery Current (A)");
   _handles.chTemperature->createDescriptor("2901")->setValue("Battery Temperature (°C)");
   _handles.chMode->createDescriptor("2901")->setValue("Operating Mode");
-  _handles.chCommand->createDescriptor("2901")->setValue("Command (CLEAR_NVM/RESET/CLEAR_RESET)");
+  _handles.chCommand->createDescriptor("2901")->setValue("Command (CLEAR_NVM/RESET/CLEAR_RESET/SET_CAP:<Ah>)");
   _handles.chSOC->createDescriptor("2901")->setValue("State of Charge (%)");
   _handles.chSOH->createDescriptor("2901")->setValue("State of Health (%)");
-  _handles.chCommand->setCallbacks(new CommandCallbacks());
+  _handles.chCapacity->createDescriptor("2901")->setValue("Battery Capacity (Ah)");
+  _handles.chCommand->setCallbacks(new CommandCallbacks(this));
 
   _handles.chVoltage->setValue("— V");
   _handles.chCurrent->setValue("— A");
@@ -106,6 +133,7 @@ void BleMgr::begin(const char* deviceName) {
   _handles.chCommand->setValue("READY");
   _handles.chSOC->setValue("— %");
   _handles.chSOH->setValue("— %");
+  _handles.chCapacity->setValue("— Ah");
   svc->start();
 
   NimBLEAdvertisementData advData; advData.setName(deviceName); advData.addServiceUUID("a94f0001-12d3-11ee-be56-0242ac120002");
@@ -139,4 +167,101 @@ void BleMgr::update(float V, float I, float T, const char* mode, float soc_pct, 
   _handles.chMode->notify();
   _handles.chSOC->notify();
   _handles.chSOH->notify();
+  if (_handles.chCapacity) {
+    char bufCap[16];
+    snprintf(bufCap, sizeof(bufCap), "%.2f Ah", batteryCapacityAh);
+    _handles.chCapacity->setValue(bufCap);
+    _handles.chCapacity->notify();
+  }
+}
+
+void BleMgr::process() {
+  if (_pendingCommand == CMD_NONE) return;
+  uint8_t cmd = _pendingCommand;
+  _pendingCommand = CMD_NONE;
+
+  if (!_handles.chCommand) return;
+
+  if (cmd == CMD_CLEAR_NVM) {
+    Serial.println("[BLE] Processing CLEAR_NVM (main loop)...");
+    Preferences prefs;
+    prefs.begin("battmon", false);
+    prefs.clear();
+    prefs.end();
+    Serial.println("[BLE]   - Cleared 'battmon' namespace");
+    prefs.begin("hall", false);
+    prefs.clear();
+    prefs.end();
+    Serial.println("[BLE]   - Cleared 'hall' namespace");
+    _handles.chCommand->setValue("NVM_CLEARED");
+    _handles.chCommand->notify();
+  }
+  else if (cmd == CMD_RESET) {
+    Serial.println("[BLE] Processing RESET (main loop)...");
+    _handles.chCommand->setValue("RESETTING");
+    _handles.chCommand->notify();
+    delay(2000);
+    ESP.restart();
+  }
+  else if (cmd == CMD_CLEAR_RESET) {
+    Serial.println("[BLE] Processing CLEAR_RESET (main loop)...");
+    Preferences prefs;
+    prefs.begin("battmon", false);
+    prefs.clear();
+    prefs.end();
+    prefs.begin("hall", false);
+    prefs.clear();
+    prefs.end();
+    _handles.chCommand->setValue("NVM_CLEARED_RESETTING");
+    _handles.chCommand->notify();
+    delay(2000);
+    ESP.restart();
+  }
+  else if (cmd == CMD_SET_CAP) {
+    float v = _pendingParam;
+    _pendingParam = NAN;
+    if (isfinite(v) && v > 0.0f) {
+      Serial.printf("[BLE] Processing SET_CAP (main loop): %.3f Ah\n", v);
+      setBatteryCapacityAh(v);
+      // Publish capacity change over MQTT if connected
+      if (mqtt.connected()) {
+        char js[128];
+        snprintf(js, sizeof(js), "{\"event\":\"cap_set\",\"value_Ah\":%.3f}", v);
+        mqtt.publish(MQTT_TOPIC, js, true);
+        mqtt.loop();
+      }
+      char buf[32];
+      snprintf(buf, sizeof(buf), "CAP_SET:%.3fAh", v);
+      _handles.chCommand->setValue(buf);
+      _handles.chCommand->notify();
+    }
+    else {
+      _handles.chCommand->setValue("CAP_BAD_PARAM");
+      _handles.chCommand->notify();
+    }
+  }
+  else if (cmd == CMD_SET_BASE) {
+    float v = _pendingParam;
+    _pendingParam = NAN;
+    if (isfinite(v) && v > 0.0f) {
+      Serial.printf("[BLE] Processing SET_BASE (main loop): %.3f mOhm\n", v);
+      // Update learner baseline
+      learner.setBaseline(v);
+      // Publish baseline change over MQTT if connected
+      if (mqtt.connected()) {
+        char js[128];
+        snprintf(js, sizeof(js), "{\"event\":\"baseline_set\",\"value_mOhm\":%.3f}", v);
+        mqtt.publish(MQTT_TOPIC, js, true);
+        mqtt.loop();
+      }
+      char buf[32];
+      snprintf(buf, sizeof(buf), "BASE_SET:%.3fmOhm", v);
+      _handles.chCommand->setValue(buf);
+      _handles.chCommand->notify();
+    }
+    else {
+      _handles.chCommand->setValue("BASE_BAD_PARAM");
+      _handles.chCommand->notify();
+    }
+  }
 }
