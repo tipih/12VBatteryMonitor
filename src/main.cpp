@@ -15,6 +15,7 @@
 #include <algorithm>    // for std::sort (hall zero trimmed mean)
 #include <cstring>      // for strncmp, atoi
 #include <NimBLEDevice.h>
+#include <ArduinoOTA.h>
 #include <app_config.h>
 #include <power/sleep_mgr.h>
 #include <sensor/ds18b20.h>
@@ -72,6 +73,9 @@ uint32_t  parkedIdleEnterMs = 0;    // when we entered Parked&Idle
 
 enum Mode { MODE_ACTIVE = 0, MODE_PARKED_IDLE = 1 };
 Mode mode = MODE_ACTIVE;
+
+// OTA initialization guard
+static bool otaInitialized = false;
 
 
 // ------------------------------ OCV → SOC table at 25C ------------------------------
@@ -165,6 +169,43 @@ void setup() {
   wifi.connectSmart(WIFI_SSID, WIFI_PASSWORD, wifiCooldown, /*attempts*/ 15);
   if (wifi.connected()) {
     mqtt.ensureConnected(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS);
+    // Initialize OTA if Wi-Fi is available. If `OTA_PASSWORD` macro is defined
+    // in your `src/secret.h`, it will be applied; otherwise OTA will run without a password.
+    ArduinoOTA.setHostname(MQTT_CLIENT_ID);
+#ifdef OTA_PASSWORD
+    ArduinoOTA.setPassword(OTA_PASSWORD);
+#endif
+    ArduinoOTA.onStart([]() {
+      Serial.println("OTA Start TEST");
+      });
+    ArduinoOTA.onEnd([]() {
+      Serial.println("OTA End");
+      });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
+      });
+    ArduinoOTA.onError([](ota_error_t err) {
+      Serial.printf("OTA Error[%u]: ", (unsigned)err);
+      if (err == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (err == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (err == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (err == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (err == OTA_END_ERROR) Serial.println("End Failed");
+      });
+    ArduinoOTA.begin();
+    // Publish device IP as retained message to <MQTT_TOPIC>/ip
+    {
+      IPAddress ip = WiFi.localIP();
+      char ipStr[32];
+      snprintf(ipStr, sizeof(ipStr), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+      char ipTopic[80];
+      snprintf(ipTopic, sizeof(ipTopic), "%s/ip", MQTT_TOPIC);
+      if (mqtt.connected()) {
+        mqtt.publish(ipTopic, ipStr, true);
+        mqtt.loop();
+        delay(50);
+      }
+    }
   }
 
   // Wire debug publisher
@@ -401,6 +442,41 @@ void loop() {
     if (wifi.connected() && !mqtt.connected()) {
       //Serial.println("MQTT not connected, try connect");
       mqtt.ensureConnected(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS);
+      // Initialize OTA if not already initialized
+      if (!otaInitialized) {
+        ArduinoOTA.setHostname(MQTT_CLIENT_ID);
+#ifdef OTA_PASSWORD
+        ArduinoOTA.setPassword(OTA_PASSWORD);
+#endif
+        ArduinoOTA.onStart([]() { Serial.println("OTA Start"); });
+        ArduinoOTA.onEnd([]() { Serial.println("OTA End"); });
+        ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+          Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
+          });
+        ArduinoOTA.onError([](ota_error_t err) {
+          Serial.printf("OTA Error[%u]: ", (unsigned)err);
+          if (err == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+          else if (err == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+          else if (err == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+          else if (err == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+          else if (err == OTA_END_ERROR) Serial.println("End Failed");
+          });
+        ArduinoOTA.begin();
+        otaInitialized = true;
+        Serial.println("ArduinoOTA initialized (on reconnect)");
+      }
+      // Publish/refresh device IP as retained message to <MQTT_TOPIC>/ip after reconnect
+      {
+        IPAddress ip = WiFi.localIP();
+        char ipStr[32];
+        snprintf(ipStr, sizeof(ipStr), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+        char ipTopic[80];
+        snprintf(ipTopic, sizeof(ipTopic), "%s/ip", MQTT_TOPIC);
+        if (mqtt.connected()) {
+          mqtt.publish(ipTopic, ipStr, true);
+          mqtt.loop();
+        }
+      }
     }
 
     //Serial.println("prepare to send");
@@ -503,5 +579,6 @@ void loop() {
 
 
 
+  ArduinoOTA.handle();
   mqtt.loop();
 }

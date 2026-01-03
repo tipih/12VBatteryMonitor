@@ -62,7 +62,7 @@ const uint32_t STEP_ACTIVITY_WINDOW_MS = 200;     // within this time window
 // 1 hour timer once Parked&Idle begins
 const uint64_t PARKED_IDLE_MAX_MS = 10ULL * 60ULL * 1000ULL; // 20 min awake/idle before deep sleep
 // Deep sleep cadence while parked
-const uint64_t PARKED_WAKE_INTERVAL_US = 2ULL * 60ULL * 1000000ULL; // 5 min deep sleep
+const uint64_t PARKED_WAKE_INTERVAL_US = 5ULL * 60ULL * 1000000ULL; // 5 min deep sleep
 
 //BLE
 static const char* BLE_DEVICE_NAME = "ESP32-BattMon";
