@@ -1,7 +1,7 @@
 # ESP32 12V Battery Monitor
 
 ## 📌 Project Overview
-An embedded system for real-time monitoring of a 12V automotive battery using **ESP32** and multiple sensors. The project tracks battery health, estimates State of Charge (SOC) and State of Health (SOH), and adapts its behavior based on vehicle activity (Active ↔ Parked/Idle ↔ Deep Sleep).
+An embedded system for real-time monitoring of a 12V automotive battery using **ESP32** and multiple sensors. The project tracks battery health, estimates State of Charge (SOC) and State of Health (SOH), and provides remote monitoring via MQTT and BLE.
 
 ## ✨ Features
 - **Voltage, Current, Temperature Monitoring**
@@ -23,7 +23,7 @@ An embedded system for real-time monitoring of a 12V automotive battery using **
   - Existing commands (CLEAR, RESET) remain supported.
 - **Queued, safe processing:** Commands received over BLE are enqueued and executed in the main loop (avoids blocking the NimBLE task). Call `ble.process()` from your main loop where BLE is updated.
 - **Battery capacity exposed via BLE:** A read/notify characteristic (`chCapacity`) exposes the runtime `batteryCapacityAh` value. See [src/comms/ble_mgr.cpp](src/comms/ble_mgr.cpp).
-- **Runtime persistence:** Settings are persisted to NVS using Preferences. Keys used include `battery_capacity_Ah`, `rintBase_mR` and related Rint values. Reading checks for key existence to avoid noisy NVS "NOT_FOUND" logs. See [src/app_config.cpp](src/app_config.cpp).
+- **Runtime persistence:** Settings are persisted to NVS using Preferences. Keys used include `battery_capacity_Ah`, `rintBase_mR` and related Rint values. Reading checks for key existence to avoid errors.
 - **MQTT notifications:** When capacity or baseline are changed via BLE the device publishes retained JSON messages to the telemetry `MQTT_TOPIC` so remote systems see the latest values immediately.
 - **Case-insensitive parsing:** BLE command parsing is case-insensitive so `set_cap`, `SET_base`, or `Set_Cap` all work.
 
@@ -35,31 +35,27 @@ An embedded system for real-time monitoring of a 12V automotive battery using **
 - Optional: BLE-enabled smartphone for local monitoring
 
 ## **Power: 12V → 3.3V (Automotive)**
-
-Use an automotive-capable DC‑DC step‑down (buck) converter to power the ESP32 from a 12V vehicle battery. Automotive electrical systems present transients, load dumps and wide input voltages, so choose or protect your regulator accordingly:
+Use an automotive-capable DC‑DC step‑down (buck) converter to power the ESP32 from a 12V vehicle battery. Automotive electrical systems present transients, load dumps and wide input voltages.
 
 - **What to look for:** wide input range (eg. ~6–40V or wider), regulated 3.3V output, >=1A (2A recommended), thermal shutdown, short-circuit protection, and low output ripple.
-- **Protection & wiring:** place a properly rated fuse near the battery positive, add reverse‑polarity protection (ideal diode or series MOSFET), and a transient voltage suppressor (TVS) or surge protector on the input. Use bulk input capacitance and an LC/RFI filter to reduce noise.
-- **Ignition sensing:** if the device should power on/off with vehicle ignition, use an ignition sense line into a GPIO (with proper voltage divider and protection) or control the converter's enable pin using an ignition‑sensing circuit.
+- **Protection & wiring:** place a properly rated fuse near the battery positive, add reverse‑polarity protection (ideal diode or series MOSFET), and a transient voltage suppressor (TVS) or surge protector.
+- **Ignition sensing:** if the device should power on/off with vehicle ignition, use an ignition sense line into a GPIO (with proper voltage divider and protection) or control the converter's enable pin.
 - **Grounding & EMI:** keep converter and sensor grounds low‑impedance and star‑connected where possible; add common‑mode chokes or ferrite beads if telemetry or sensors show interference.
 
-If you need a simple bench option for development, use a high quality wide‑input buck module, but for production prefer an automotive‑rated DC‑DC module or an inline protection board designed for automotive use.
-
 ### Cheap prototyping options
-If you want a low-cost way to prototype the 12V → 3.3V power path, these inexpensive modules work fine for bench and short-term in-vehicle testing (not a substitute for an automotive-rated regulator in production):
-
-- **MP1584EN-based adjustable buck module** (often sold as "MP1584" or "XlSemi MP1584") — small, adjustable, 3A rated, typical input 4.5–28V. Good balance of cost and capability.
-- **LM2596S adjustable buck module** — very common, inexpensive, input often up to ~40V, but larger and with higher ripple; OK for prototyping.
+If you want a low-cost way to prototype the 12V → 3.3V power path, these inexpensive modules work fine for bench and short-term in-vehicle testing (not a substitute for an automotive-rated regulator):
+- **MP1584EN-based adjustable buck module** — small, adjustable, 3A rated, typical input 4.5–28V.
+- **LM2596S adjustable buck module** — very common, inexpensive, input up to ~40V.
 - **Note:** Do NOT use linear regulators like `AMS1117-3.3` directly from 12V in a vehicle — they will dissipate too much heat.
 
 Minimum recommended protections and parts for prototyping:
 - inline fuse (1–2 A slow blow) near battery +
 - reverse polarity protection (ideal diode module or series MOSFET)
 - input bulk capacitor (100 µF electrolytic) and 0.1 µF ceramic
-- small TVS transient suppressor (automotive TVS or similar) on the input
+- small TVS transient suppressor on the input
 
 Simple wiring example (ASCII):
-
+```
  Battery + ---- Fuse ----+---- VIN+ (buck)
                        |
                        +---- Ignition sense (optional through divider)
@@ -68,16 +64,30 @@ Simple wiring example (ASCII):
 
  VOUT+ (buck 3.3V) -----> 3.3V input on ESP32 (use ESP32 3.3V pin)
  VOUT- (buck GND) ------> ESP32 GND
-
-Keep wiring short and use proper gauge for automotive experiments. For any permanent or long-term in-vehicle installation, choose an automotive-rated DC-DC converter and add proper surge protection and isolation.
+```
+Keep wiring short and use proper gauge for automotive experiments.
 
 ## 🔌 Wiring Diagram
-*(Add your wiring diagram image here)*
+
+| Component       | ESP32 Pin      |
+|-----------------|---------------|
+| INA226 SDA      | GPIO21        |
+| INA226 SCL      | GPIO22        |
+| Hall Sensor Vout| GPIO34 (ADC)  |
+| Hall Sensor Vref| GPIO35 (ADC)  |
+| DS18B20 Data    | GPIO4         |
+| DS18B20 VCC     | 3.3V          |
+| DS18B20 GND     | GND           |
+
+**Notes:**
+- Add a 4.7kΩ pull-up resistor between DS18B20 Data and 3.3V.
+- INA226 uses I²C bus (SDA/SCL).
+- Hall sensor requires stable reference voltage (Vref).
 
 ## 🚀 Build Instructions (PlatformIO)
 1. Clone this repository:
    ```bash
-   git clone https://github.com/<youruser>/12VBatteryMonitor.git
+   git clone https://github.com/tipih/12VBatteryMonitor.git
    cd 12VBatteryMonitor
    ```
 2. Open in VS Code with PlatformIO extension.
@@ -128,34 +138,14 @@ Key parameters:
   - Mode (Active / Parked-Idle)
 - Use any BLE scanner app to view live data.
 
-
-## Wiring Diagram
-
-| Component       | ESP32 Pin      |
-|-----------------|---------------|
-| INA226 SDA      | GPIO21        |
-| INA226 SCL      | GPIO22        |
-| Hall Sensor Vout| GPIO34 (ADC)  |
-| Hall Sensor Vref| GPIO35 (ADC)  |
-| DS18B20 Data    | GPIO4         |
-| DS18B20 VCC     | 3.3V          |
-| DS18B20 GND     | GND           |
-
-**Notes:**
-- Add a 4.7kΩ pull-up resistor between DS18B20 Data and 3.3V.
-- INA226 uses I²C bus (SDA/SCL).
-- Hall sensor requires stable reference voltage (Vref).
-
-
-## Hardware Needed
+## 🛠 Hardware Needed
 - ESP32 Development Board
-- [INA226 Current/Voltage Sensor](https://www.ti.com/productor (3.3V variant)
+- [INA226 Current/Voltage Sensor](https://www.ti.com/product/INA226)
+- HSTS016L Hall Sensor (3.3V variant)
 - DS18B20 Temperature Sensor
 - Pull-up resistor for DS18B20 (4.7kΩ)
 - Automotive-grade wiring and connectors
+- Buck converter for 12V -> 3.3 Volt
 
-
-
-
-## 📄 License MIT License
-
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
