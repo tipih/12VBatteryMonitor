@@ -21,8 +21,10 @@ void setBatteryCapacityAh(float ah);
 const float INITIAL_BASELINE_mOHM = 35.0f;    // known-good baseline for LTX9-4
 
 // Rest detection for OCV correction
-const float    REST_CURRENT_THRESH_A = 0.2f;     // <= this considered "rest"
+const float    REST_CURRENT_THRESH_A = 0.60f;     // <= this considered "rest" (raised slightly)
 const uint32_t REST_DETECT_SEC = 5 * 60;   // need 5 min rest for OCV snap
+// Grace window for transient spikes: do not immediately clear `rest_accum_s`
+const uint32_t REST_RESET_GRACE_SEC = 5;  // seconds of sustained non-rest before clearing rest_accum_s
 
 // Hall (HSTS016L)
 constexpr int   PIN_VOUT = 34;
@@ -55,8 +57,8 @@ const float REF_TEMP_C = 25.0f;
 const float TEMP_ALPHA_PER_C = 0.0030f; // ≈0.3%/°C
 
 // ------------------ Parked/Idle detection & sleep policy ------------------
-const float    BASE_CONS_THRESH_A = 0.5f; // quiescent I threshold (parked/idle)
-const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 2 * 60;  // need 5 min quiet to enter Parked&Idle
+const float    BASE_CONS_THRESH_A = 0.65f; // quiescent I threshold (parked/idle) — raised to reduce false positives
+const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 5 * 60;  // need 5 min quiet to enter Parked&Idle
 const float    STEP_ACTIVITY_DI_A = 1.5f;    // ΔI>=1.5A counts as activity
 const uint32_t STEP_ACTIVITY_WINDOW_MS = 200;     // within this time window
 // 1 hour timer once Parked&Idle begins

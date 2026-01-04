@@ -62,6 +62,7 @@ OcvEstimator ocvEst;  // Static helper class
 
 float     soc_pct = 50.0f;
 float     rest_accum_s = 0.0f;
+float     rest_reset_accum_s = 0.0f; // accumulate brief non-rest samples before clearing rest_accum_s
 float     last_I_A = 0.0f;
 float     last_V_V = 12.6f;
 float     last_T_C = 25.0f;
@@ -331,10 +332,20 @@ void loop() {
 
     // Rest accumulation for OCV correction
 
-    if (fabsf(I) < REST_CURRENT_THRESH_A && !stateDetector.alternatorOn(V))
-      rest_accum_s += (now - lastSampleMs) / 1000.0f;
-    else
-      rest_accum_s = 0.0f;
+    float dt_s = (now - lastSampleMs) / 1000.0f;
+    if (fabsf(I) < REST_CURRENT_THRESH_A && !stateDetector.alternatorOn(V)) {
+      rest_accum_s += dt_s;
+      rest_reset_accum_s = 0.0f;
+    }
+    else {
+      // brief spikes should not immediately clear the rest accumulator — only clear
+      // if non-rest condition persists for REST_RESET_GRACE_SEC seconds
+      rest_reset_accum_s += dt_s;
+      if (rest_reset_accum_s >= (float)REST_RESET_GRACE_SEC) {
+        rest_accum_s = 0.0f;
+        rest_reset_accum_s = 0.0f;
+      }
+    }
 
 
     // Parked/Idle detection
