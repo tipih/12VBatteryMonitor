@@ -2,6 +2,31 @@
 
 All notable changes to the 12V Battery Monitor project.
 
+## [Unreleased] - 2026-01-06
+
+### Added
+- Home Assistant MQTT Discovery: publish retained discovery payloads so Home Assistant auto-discovers sensors (`Toyota_batt_sensor` discovery id).
+- BLE commands `SET_CAP` and `SET_BASE` to set runtime battery capacity (Ah) and Rint baseline (mΩ) and persist to NVS.
+- BLE characteristic exposing runtime battery capacity (read/notify).
+
+### Changed
+- Queued BLE command processing: BLE writes now enqueue commands; heavy ops (NVM writes, restart) are processed from main loop to avoid blocking NimBLE.
+- Rint learner ingestion guarded: skip ingestion when |I| > `RINT_INGEST_MAX_I_A` and filter extreme Rint values > `RINT_MAX_VALID_MOHM` in telemetry.
+- Rest accumulator robustness: added `REST_RESET_GRACE_SEC` so brief current spikes don't immediately clear rest accumulation.
+- Home Assistant discovery unique_id base set to `Toyota_batt_sensor` (while preserving `MQTT_CLIENT_ID` in device identifiers).
+
+### Fixed
+- Removed invalid telemetry initializer causing a compile error (`hasRintBaseline`).
+- Fixed compile errors by forward-declaring `extern MqttMgr mqtt` for discovery publisher and other small fixes.
+
+### Docs / Tools
+- Added ArduinoOTA integration and PlatformIO OTA environment; publish retained device IP to `<MQTT_TOPIC>/ip` to simplify OTA targeting.
+- Updated README and added `secrets.example.h` and CHANGELOG updates.
+
+### Notes
+- Key files changed: `src/main.cpp`, `src/app_config.h`, `src/telemetry_payload.*`, `src/comms/ble_mgr.*`, `src/learner/rint_learner.h`, `platformio.ini`, `secrets.example.h`, README and CHANGELOG.
+
+
 ## [Unreleased] - 2025-12-14
 
 ### Added
