@@ -19,6 +19,11 @@ constexpr const char* MQTT_TOPIC    = "battmon/telemetry"; // telemetry topic
 constexpr const char* BLE_DEVICE_NAME = "ESP32-BattMon";
 
 // Optional: Over-the-air update password / admin token
+// Optional: Over-the-air update password / admin token
+// You can define OTA_PASSWORD either as a C string or as a macro in `src/secret.h`.
+// Example (C string):
 // constexpr const char* OTA_PASSWORD = "your_ota_password";
+// Or define a macro (so `#ifdef OTA_PASSWORD` checks in code will work):
+// #define OTA_PASSWORD "your_ota_password"
 
 // Example: copy to src/secret.h and then edit values.

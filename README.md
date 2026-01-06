@@ -100,6 +100,37 @@ Keep wiring short and use proper gauge for automotive experiments.
    pio run --target upload
    ```
 
+## **OTA (Over-The-Air) Updates**
+
+This project supports ArduinoOTA for in‑network firmware updates. Below are quick steps to configure and perform OTA uploads from VS Code / PlatformIO.
+
+Prerequisites:
+- Device running this firmware and connected to the same LAN as your development PC.
+- `ArduinoOTA.begin()` is called in `setup()` (this repository initializes OTA when Wi‑Fi connects).
+- If you use an OTA password, set it in `src/secret.h` (see `secrets.example.h`).
+
+PlatformIO configuration (one-time):
+- Add an OTA build env using `upload_protocol = espota` (this repo includes `firebeatleV2_ota` in `platformio.ini`).
+- Configure `upload_port` to the device IP (or pass it on the CLI). If you use a password, set `upload_flags = --auth=YOUR_OTA_PASSWORD`.
+
+Upload from VS Code (PlatformIO GUI):
+- Project Tasks → select `firebeatleV2_ota` → Upload. When prompted, enter the device IP (e.g. 192.168.0.132), or set `upload_port` in `platformio.ini`.
+
+Upload from CLI (copyable):
+```bash
+pio run -e firebeatleV2_ota -t upload --upload-port 192.168.0.132 --upload-flags="--auth=OTAsecret"
+```
+
+If you prefer a keyboard shortcut, create `.vscode/tasks.json` with a task that runs the same `pio` command, then bind a key to run that task in VS Code keyboard shortcuts.
+
+Troubleshooting:
+- Ensure your PC and the device are on the same subnet and there is no firewall blocking outgoing TCP to port 3232.
+- Check device serial output for OTA logs: the firmware prints `ArduinoOTA initialized` and `OTA Start`/`OTA End` when OTA runs.
+- If upload hangs at "Sending invitation", verify the device IP with `ipconfig`/router DHCP page or the retained MQTT `<MQTT_TOPIC>/ip` topic (this firmware publishes the device IP retained).
+- If using a password, ensure the same password is passed to PlatformIO via `upload_flags` or defined in `platformio.ini`.
+
+Security note: OTA with a password is better than no auth; for production consider secure network isolation or additional authentication.
+
 ## ⚙️ Configuration Guide (`app_config.h`)
 Key parameters:
 - `BATTERY_CAPACITY_AH` – Battery capacity in Ah
