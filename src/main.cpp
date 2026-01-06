@@ -30,6 +30,86 @@
 #include <battery/state_detector.h>
 #include <battery/ocv_estimator.h>
 
+// Forward-declare global mqtt instance (defined later in this file)
+extern MqttMgr mqtt;
+
+// Publish Home Assistant MQTT discovery config for sensors
+void publishHADiscovery() {
+  if (!mqtt.connected()) return;
+  const char* base = MQTT_TOPIC; // state topic
+  const char* haId = "Toyota_batt_sensor"; // Home Assistant discovery ID / unique_id base
+  // Device object
+  char deviceJson[256];
+  snprintf(deviceJson, sizeof(deviceJson),
+    "{\"identifiers\":[\"%s\",\"%s\"],\"name\":\"Battery Monitor\"}", haId, MQTT_CLIENT_ID);
+
+  // Helper buffers
+  char topic[160];
+  char payload[512];
+
+  // Voltage
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_voltage/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Battery Voltage\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"V\",\"device_class\":\"voltage\",\"value_template\":\"{{ value_json.voltage_V }}\",\"unique_id\":\"%s_voltage\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // Current
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_current/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Battery Current\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"A\",\"value_template\":\"{{ value_json.current_A }}\",\"unique_id\":\"%s_current\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // SOC
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_soc/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Battery SOC\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"%%\",\"device_class\":\"battery\",\"value_template\":\"{{ value_json.soc_pct }}\",\"unique_id\":\"%s_soc\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // SOH
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_soh/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Battery SOH\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"%%\",\"value_template\":\"{{ value_json.soh_pct }}\",\"unique_id\":\"%s_soh\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // Rint
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_rint/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Rint (mOhm)\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"mΩ\",\"value_template\":\"{% if value_json.Rint_mOhm is not none %}{{ value_json.Rint_mOhm }}{% else %}{{ value_json.RintBaseline_mOhm }}{% endif %}\",\"unique_id\":\"%s_rint\",\"device\":%s}",
+    base, haId, deviceJson);
+  // Note: the above template uses Jinja; Home Assistant will parse it. If the template syntax
+  // causes issues in the C string on some toolchains you can simplify to always show RintBaseline.
+  mqtt.publish(topic, payload, true);
+  // Note: the above template uses Jinja; Home Assistant will parse it. If the template syntax
+  // causes issues in the C string on some toolchains you can simplify to always show RintBaseline.
+  mqtt.publish(topic, payload, true);
+
+  // Alternator (binary sensor)
+  snprintf(topic, sizeof(topic), "homeassistant/binary_sensor/%s_alternator/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Alternator On\",\"state_topic\":\"%s\",\"value_template\":\"{{ value_json.alternator_on }}\",\"payload_on\":\"true\",\"payload_off\":\"false\",\"unique_id\":\"%s_alternator\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // Mode
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_mode/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Battery Mode\",\"state_topic\":\"%s\",\"value_template\":\"{{ value_json.mode }}\",\"unique_id\":\"%s_mode\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // Uptime
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_uptime/config", haId);
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Battery Uptime\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"s\",\"value_template\":\"{{ (value_json.up_ms / 1000) | int }}\",\"unique_id\":\"%s_uptime\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+}
+
 #define DEBUG_POWER_MANAGEMENT 1
 //#define DEBUG_STATE_DETECTOR 1
 //#define DEBUG_NO_SLEEP 1
@@ -205,6 +285,8 @@ void setup() {
         mqtt.publish(ipTopic, ipStr, true);
         mqtt.loop();
         delay(50);
+        // Publish Home Assistant discovery configs
+        publishHADiscovery();
       }
     }
   }
@@ -241,6 +323,9 @@ void setup() {
     float rint25_mOhm = learner.lastRint25_mOhm();
     float base_mOhm = learner.baseline_mOhm();
     float soh = learner.currentSOH();
+    // Filter extreme Rint values (starter/transient artifacts)
+    float rint_mOhm_f = (isfinite(rint_mOhm) && rint_mOhm <= RINT_MAX_VALID_MOHM) ? rint_mOhm : base_mOhm;
+    float rint25_mOhm_f = (isfinite(rint25_mOhm) && rint25_mOhm <= RINT_MAX_VALID_MOHM) ? rint25_mOhm : base_mOhm;
 
 
 
@@ -249,15 +334,15 @@ void setup() {
       .mode = "snapshot",
       .V = last_V_V, .I = last_I_A, .T = last_T_C,
       .soc_pct = soc_pct, .soh_pct = soh * 100.0f,
-      .Rint_mOhm = isfinite(rint_mOhm) ? rint_mOhm : base_mOhm,
-      .Rint25_mOhm = isfinite(rint25_mOhm) ? rint25_mOhm : base_mOhm,
+      .Rint_mOhm = rint_mOhm_f,
+      .Rint25_mOhm = rint25_mOhm_f,
       .RintBaseline_mOhm = base_mOhm,
       .alternator_on = stateDetector.alternatorOn(last_V_V),
       .rest_s = (uint32_t)rest_accum_s,
       .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
       .up_ms = millis(),
-      .hasRint = isfinite(rint_mOhm),
-      .hasRint25 = isfinite(rint25_mOhm)
+      .hasRint = (isfinite(rint_mOhm) && rint_mOhm <= RINT_MAX_VALID_MOHM),
+      .hasRint25 = (isfinite(rint25_mOhm) && rint25_mOhm <= RINT_MAX_VALID_MOHM)
     };
     Serial.println("Publishing snapshot telemetry");
     Serial.printf("V: %.3f V, I: %.3f A, T: %.1f C, SOC: %.1f %%, SOH: %.1f %%\n",
@@ -397,14 +482,17 @@ void loop() {
     lastSampleMs = now;
 
     // Feed learner with the current sample (either V/I or last_*)
-    learner.ingest(last_V_V, last_I_A, (isfinite(last_T_C) ? last_T_C : NAN), now);
+    if (fabsf(last_I_A) <= RINT_INGEST_MAX_I_A) {
+      learner.ingest(last_V_V, last_I_A, (isfinite(last_T_C) ? last_T_C : NAN), now);
+    }
 
-    // Debug: Show if Rint was calculated
+    // Debug: Show if Rint was calculated (ignore extreme spike values)
     static float prevRint = NAN;
     float currRint = learner.lastRint_mOhm();
-    if (isfinite(currRint) && currRint != prevRint) {
+    float currRint25 = learner.lastRint25_mOhm();
+    if (isfinite(currRint) && currRint <= RINT_MAX_VALID_MOHM && currRint != prevRint) {
       Serial.printf("*** NEW RINT CALCULATED: %.2f mOhm (25C: %.2f mOhm) ***\n",
-        currRint, learner.lastRint25_mOhm());
+        currRint, currRint25);
       prevRint = currRint;
     }
 
@@ -486,6 +574,8 @@ void loop() {
         if (mqtt.connected()) {
           mqtt.publish(ipTopic, ipStr, true);
           mqtt.loop();
+          // Refresh Home Assistant discovery configs on reconnect
+          publishHADiscovery();
         }
       }
     }
@@ -497,6 +587,9 @@ void loop() {
     float lastRint25 = learner.lastRint25_mOhm();
     float baseR = learner.baseline_mOhm();
     float soh = learner.currentSOH();
+    // Filter extreme Rint values (starter/transient artifacts)
+    float lastRint_f = (isfinite(lastRint) && lastRint <= RINT_MAX_VALID_MOHM) ? lastRint : baseR;
+    float lastRint25_f = (isfinite(lastRint25) && lastRint25 <= RINT_MAX_VALID_MOHM) ? lastRint25 : baseR;
 
     Serial.print("Mode: ");
     Serial.print((mode == MODE_ACTIVE) ? "ACTIVE" : "PARKED-IDLE");
@@ -505,26 +598,25 @@ void loop() {
     Serial.print(" %, SOC: ");
     Serial.print(soc_pct * 1.0f);
     Serial.printf(" Rint: %.2f mOhm, Rint25: %.2f mOhm, BaseR: %.2f mOhm\n",
-      isfinite(lastRint) ? lastRint : baseR,
-      isfinite(lastRint25) ? lastRint25 : baseR,
+      lastRint_f,
+      lastRint25_f,
       baseR);
     Serial.println();
-
 
 
     TelemetryFrame tf{
       .mode = (mode == MODE_ACTIVE ? "active" : "parked-idle"),
       .V = last_V_V, .I = last_I_A, .T = last_T_C,
       .soc_pct = soc_pct, .soh_pct = soh * 100.0f,
-      .Rint_mOhm = isfinite(lastRint) ? lastRint : baseR,
-      .Rint25_mOhm = isfinite(lastRint25) ? lastRint25 : baseR,
+      .Rint_mOhm = lastRint_f,
+      .Rint25_mOhm = lastRint25_f,
       .RintBaseline_mOhm = baseR,
       .alternator_on = altOn,
       .rest_s = (uint32_t)rest_accum_s,
       .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
       .up_ms = now,
-      .hasRint = isfinite(lastRint),
-      .hasRint25 = isfinite(lastRint25)
+      .hasRint = (isfinite(lastRint) && lastRint <= RINT_MAX_VALID_MOHM),
+      .hasRint25 = (isfinite(lastRint25) && lastRint25 <= RINT_MAX_VALID_MOHM)
     };
 
     char payload[700];

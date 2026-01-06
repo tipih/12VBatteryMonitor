@@ -56,6 +56,10 @@ const uint32_t PUBLISH_INTERVAL_MS_IDLE = 10000;// Reduced cadence while Parked&
 const float REF_TEMP_C = 25.0f;
 const float TEMP_ALPHA_PER_C = 0.0030f; // ≈0.3%/°C
 
+// Rint ingestion & validation
+const float RINT_INGEST_MAX_I_A = 20.0f;    // skip learner.ingest() when |I| > this (A)
+const float RINT_MAX_VALID_MOHM = 100.0f;   // ignore Rint values larger than this when publishing/using
+
 // ------------------ Parked/Idle detection & sleep policy ------------------
 const float    BASE_CONS_THRESH_A = 0.65f; // quiescent I threshold (parked/idle) — raised to reduce false positives
 const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 5 * 60;  // need 5 min quiet to enter Parked&Idle
