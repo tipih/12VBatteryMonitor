@@ -223,6 +223,13 @@ void BleMgr::process() {
     if (isfinite(v) && v > 0.0f) {
       Serial.printf("[BLE] Processing SET_CAP (main loop): %.3f Ah\n", v);
       setBatteryCapacityAh(v);
+      // Immediately update capacity characteristic so BLE clients see the new value
+      if (_handles.chCapacity) {
+        char bufCap[32];
+        snprintf(bufCap, sizeof(bufCap), "%.2f Ah", batteryCapacityAh);
+        _handles.chCapacity->setValue(bufCap);
+        _handles.chCapacity->notify();
+      }
       // Publish capacity change over MQTT if connected
       if (mqtt.connected()) {
         char js[128];
