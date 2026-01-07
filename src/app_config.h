@@ -10,7 +10,7 @@ extern const char* MQTT_CLIENT_ID;
 extern const char* MQTT_TOPIC;
 extern const char* MQTT_DBG_TOPIC;
 
-const float BATTERY_CAPACITY_AH = 90.0f; //9.0f;    // LTX9-4 motorcycle battery //REMEMBER TO UPDATE
+const float BATTERY_CAPACITY_AH = 70.0f; //9.0f;    // LTX9-4 motorcycle battery //REMEMBER TO UPDATE
 
 // Runtime-overridable battery capacity (Ah). Initialize with compile-time default
 extern float batteryCapacityAh;
@@ -66,9 +66,27 @@ const uint32_t PARKED_IDLE_ENTRY_DWELL_SEC = 5 * 60;  // need 5 min quiet to ent
 const float    STEP_ACTIVITY_DI_A = 1.5f;    // ΔI>=1.5A counts as activity
 const uint32_t STEP_ACTIVITY_WINDOW_MS = 200;     // within this time window
 // 1 hour timer once Parked&Idle begins
-const uint64_t PARKED_IDLE_MAX_MS = 10ULL * 60ULL * 1000ULL; // 20 min awake/idle before deep sleep
+const uint64_t PARKED_IDLE_MAX_MS = 10ULL * 60ULL * 1000ULL; // 10 min awake/idle before deep sleep
+
+// Enforce at least this many milliseconds in Parked&Idle before sleeping
+const uint64_t MIN_PARKED_IDLE_BEFORE_SLEEP_MS = 10ULL * 60ULL * 1000ULL; // 10 minutes
 // Deep sleep cadence while parked
 const uint64_t PARKED_WAKE_INTERVAL_US = 5ULL * 60ULL * 1000000ULL; // 5 min deep sleep
 
 //BLE
 static const char* BLE_DEVICE_NAME = "ESP32-BattMon";
+
+// Enable verbose debug serial output when set to 1
+#ifndef ENABLE_DEBUG_SERIAL
+#define ENABLE_DEBUG_SERIAL 0
+#endif
+
+#if ENABLE_DEBUG_SERIAL
+#define DBG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#define DBG_PRINTLN(x) Serial.println(x)
+#define DBG_PRINT(x) Serial.print(x)
+#else
+#define DBG_PRINTF(...)
+#define DBG_PRINTLN(x)
+#define DBG_PRINT(x)
+#endif

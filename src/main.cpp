@@ -666,7 +666,10 @@ void loop() {
     }
 #endif
 
-    if ((now - parkedIdleEnterMs) >= PARKED_IDLE_MAX_MS) {
+    // Ensure we respect a configured timeout but never sleep before
+    // `MIN_PARKED_IDLE_BEFORE_SLEEP_MS` has elapsed after entering Parked&Idle.
+    uint64_t effectiveTimeout = (PARKED_IDLE_MAX_MS >= MIN_PARKED_IDLE_BEFORE_SLEEP_MS) ? PARKED_IDLE_MAX_MS : MIN_PARKED_IDLE_BEFORE_SLEEP_MS;
+    if ((now - parkedIdleEnterMs) >= effectiveTimeout) {
       if (WiFi.status() == WL_CONNECTED && mqtt.connected()) {
         char msg[160];
         snprintf(msg, sizeof(msg),

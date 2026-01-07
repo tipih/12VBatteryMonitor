@@ -13,7 +13,7 @@ public:
   explicit CommandCallbacks(BleMgr* mgr) : _mgr(mgr) {}
   void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override {
     std::string value = pCharacteristic->getValue();
-    Serial.printf("[BLE] Command received (queued): %s\n", value.c_str());
+    DBG_PRINTF("[BLE] Command received (queued): %s\n", value.c_str());
     // Make a case-insensitive copy for command matching
     std::string u = value;
     for (auto& ch : u) ch = (char)toupper((unsigned char)ch);
@@ -63,6 +63,11 @@ public:
       pCharacteristic->setValue("QUEUED_CLEAR_NVM");
       pCharacteristic->notify();
     }
+    else if (u == "NVS_TEST") {
+      _mgr->enqueueCommand(BleMgr::CMD_NVS_TEST);
+      pCharacteristic->setValue("QUEUED_NVS_TEST");
+      pCharacteristic->notify();
+    }
     else if (u == "RESET") {
       _mgr->enqueueCommand(BleMgr::CMD_RESET);
       pCharacteristic->setValue("QUEUED_RESET");
@@ -73,8 +78,11 @@ public:
       pCharacteristic->setValue("QUEUED_CLEAR_RESET");
       pCharacteristic->notify();
     }
+    // NOTE: processing of queued commands (including NVS_TEST) occurs
+    // in BleMgr::process() running in the main loop. Avoid doing heavy
+    // work inside the NimBLE callback context.
     else {
-      Serial.printf("[BLE] Unknown command (queued): %s\n", value.c_str());
+      DBG_PRINTF("[BLE] Unknown command (queued): %s\n", value.c_str());
       pCharacteristic->setValue("UNKNOWN_CMD");
       pCharacteristic->notify();
     }
@@ -88,11 +96,11 @@ public:
   explicit ServerCallbacks(BleMgr* mgr) : _mgr(mgr) {}
   void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
     _mgr->_clientConnected = true;
-    Serial.println("[BLE] Client connected");
+    DBG_PRINTLN("[BLE] Client connected");
   }
   void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
     _mgr->_clientConnected = false;
-    Serial.println("[BLE] Client disconnected - advertising");
+    DBG_PRINTLN("[BLE] Client disconnected - advertising");
     NimBLEDevice::startAdvertising();
   }
 
@@ -115,6 +123,7 @@ void BleMgr::begin(const char* deviceName) {
   _handles.chSOC = svc->createCharacteristic("a94f0007-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   _handles.chSOH = svc->createCharacteristic("a94f0008-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   _handles.chCapacity = svc->createCharacteristic("a94f0009-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chStatus = svc->createCharacteristic("a94f000a-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
   _handles.chVoltage->createDescriptor("2901")->setValue("Battery Voltage (V)");
   _handles.chCurrent->createDescriptor("2901")->setValue("Battery Current (A)");
@@ -124,6 +133,7 @@ void BleMgr::begin(const char* deviceName) {
   _handles.chSOC->createDescriptor("2901")->setValue("State of Charge (%)");
   _handles.chSOH->createDescriptor("2901")->setValue("State of Health (%)");
   _handles.chCapacity->createDescriptor("2901")->setValue("Battery Capacity (Ah)");
+  _handles.chStatus->createDescriptor("2901")->setValue("Device Status");
   _handles.chCommand->setCallbacks(new CommandCallbacks(this));
 
   _handles.chVoltage->setValue("— V");
@@ -134,6 +144,7 @@ void BleMgr::begin(const char* deviceName) {
   _handles.chSOC->setValue("— %");
   _handles.chSOH->setValue("— %");
   _handles.chCapacity->setValue("— Ah");
+  _handles.chStatus->setValue("OK");
   svc->start();
 
   NimBLEAdvertisementData advData; advData.setName(deviceName); advData.addServiceUUID("a94f0001-12d3-11ee-be56-0242ac120002");
@@ -144,7 +155,7 @@ void BleMgr::begin(const char* deviceName) {
   adv->setMinInterval(160);
   adv->setMaxInterval(240);
   NimBLEDevice::startAdvertising();
-  Serial.println("[BLE] Advertising started");
+  DBG_PRINTLN("[BLE] Advertising started");
 }
 
 void BleMgr::update(float V, float I, float T, const char* mode, float soc_pct, float soh_pct) {
@@ -176,6 +187,19 @@ void BleMgr::update(float V, float I, float T, const char* mode, float soc_pct, 
 }
 
 void BleMgr::process() {
+  // Also run a lightweight maintenance loop for advertising even when no
+  // command is pending. This helps recover advertising if the stack stops
+  // advertising after a failed connection attempt.
+  static uint32_t lastAdvRestartMs = 0;
+  uint32_t nowMs = millis();
+  if (!_clientConnected) {
+    if ((uint32_t)(nowMs - lastAdvRestartMs) >= 5000) {
+      DBG_PRINTLN("[BLE] Maintenance: ensuring advertising");
+      NimBLEDevice::startAdvertising();
+      lastAdvRestartMs = nowMs;
+    }
+  }
+
   if (_pendingCommand == CMD_NONE) return;
   uint8_t cmd = _pendingCommand;
   _pendingCommand = CMD_NONE;
@@ -183,28 +207,28 @@ void BleMgr::process() {
   if (!_handles.chCommand) return;
 
   if (cmd == CMD_CLEAR_NVM) {
-    Serial.println("[BLE] Processing CLEAR_NVM (main loop)...");
+    DBG_PRINTLN("[BLE] Processing CLEAR_NVM (main loop)...");
     Preferences prefs;
     prefs.begin("battmon", false);
     prefs.clear();
     prefs.end();
-    Serial.println("[BLE]   - Cleared 'battmon' namespace");
+    DBG_PRINTLN("[BLE]   - Cleared 'battmon' namespace");
     prefs.begin("hall", false);
     prefs.clear();
     prefs.end();
-    Serial.println("[BLE]   - Cleared 'hall' namespace");
+    DBG_PRINTLN("[BLE]   - Cleared 'hall' namespace");
     _handles.chCommand->setValue("NVM_CLEARED");
     _handles.chCommand->notify();
   }
   else if (cmd == CMD_RESET) {
-    Serial.println("[BLE] Processing RESET (main loop)...");
+    DBG_PRINTLN("[BLE] Processing RESET (main loop)...");
     _handles.chCommand->setValue("RESETTING");
     _handles.chCommand->notify();
     delay(2000);
     ESP.restart();
   }
   else if (cmd == CMD_CLEAR_RESET) {
-    Serial.println("[BLE] Processing CLEAR_RESET (main loop)...");
+    DBG_PRINTLN("[BLE] Processing CLEAR_RESET (main loop)...");
     Preferences prefs;
     prefs.begin("battmon", false);
     prefs.clear();
@@ -221,7 +245,8 @@ void BleMgr::process() {
     float v = _pendingParam;
     _pendingParam = NAN;
     if (isfinite(v) && v > 0.0f) {
-      Serial.printf("[BLE] Processing SET_CAP (main loop): %.3f Ah\n", v);
+      DBG_PRINTF("[BLE] Processing SET_CAP (main loop): %.3f Ah\n", v);
+      // Delegate persistence to BatteryConfig via setBatteryCapacityAh()
       setBatteryCapacityAh(v);
       // Immediately update capacity characteristic so BLE clients see the new value
       if (_handles.chCapacity) {
@@ -237,8 +262,9 @@ void BleMgr::process() {
         mqtt.publish(MQTT_TOPIC, js, true);
         mqtt.loop();
       }
-      char buf[32];
-      snprintf(buf, sizeof(buf), "CAP_SET:%.3fAh", v);
+      // Use runtime value (already updated and persisted by setBatteryCapacityAh)
+      char buf[64];
+      snprintf(buf, sizeof(buf), "CAP_SET:%.3fAh RB:%.3fAh", v, batteryCapacityAh);
       _handles.chCommand->setValue(buf);
       _handles.chCommand->notify();
     }
@@ -251,7 +277,7 @@ void BleMgr::process() {
     float v = _pendingParam;
     _pendingParam = NAN;
     if (isfinite(v) && v > 0.0f) {
-      Serial.printf("[BLE] Processing SET_BASE (main loop): %.3f mOhm\n", v);
+      DBG_PRINTF("[BLE] Processing SET_BASE (main loop): %.3f mOhm\n", v);
       // Update learner baseline
       learner.setBaseline(v);
       // Publish baseline change over MQTT if connected
@@ -271,4 +297,33 @@ void BleMgr::process() {
       _handles.chCommand->notify();
     }
   }
+  else if (cmd == CMD_NVS_TEST) {
+    DBG_PRINTLN("[BLE] Processing NVS_TEST (main loop)...");
+    Preferences prefs;
+    prefs.begin("battmon", false);
+    uint32_t probe = (uint32_t)millis();
+    bool wrote = prefs.putUInt("nvs_probe", probe);
+    prefs.end();
+
+    uint32_t rb = 0;
+    bool has = false;
+    Preferences prefs2;
+    prefs2.begin("battmon", false);
+    has = prefs2.isKey("nvs_probe");
+    if (has) rb = prefs2.getUInt("nvs_probe", 0);
+    prefs2.end();
+
+    char msg[128];
+    snprintf(msg, sizeof(msg), "NVS_TEST: put=%d key=%d wrote=%lu read=%lu", wrote ? 1 : 0, has ? 1 : 0, (unsigned long)probe, (unsigned long)rb);
+    ble_notify_status(msg);
+    _handles.chCommand->setValue("NVS_TEST_DONE");
+    _handles.chCommand->notify();
+  }
+}
+
+void ble_notify_status(const char* msg) {
+  if (!msg) return;
+  if (!ble.handles().chStatus) return;
+  ble.handles().chStatus->setValue(msg);
+  ble.handles().chStatus->notify();
 }

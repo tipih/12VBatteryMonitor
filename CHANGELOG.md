@@ -2,7 +2,7 @@
 
 All notable changes to the 12V Battery Monitor project.
 
-## [Unreleased] - 2026-01-06
+## [2026-01-07] - 2026-01-07
 
 ### Added
 - Home Assistant MQTT Discovery: publish retained discovery payloads so Home Assistant auto-discovers sensors (`Toyota_batt_sensor` discovery id).
@@ -18,6 +18,8 @@ All notable changes to the 12V Battery Monitor project.
 ### Fixed
 - Removed invalid telemetry initializer causing a compile error (`hasRintBaseline`).
 - Fixed compile errors by forward-declaring `extern MqttMgr mqtt` for discovery publisher and other small fixes.
+
+- **NVS / BLE fixes:** Resolved `KEY_TOO_LONG` NVS failures for battery capacity by shortening keys and centralizing persistence in `BatteryConfig`; `SET_CAP` now persists. Moved heavy NVS work out of NimBLE callbacks, added `chCapacity` and `chStatus` BLE characteristics, a `NVS_TEST` probe, an advertising watchdog, and wrapped recent debug prints behind `ENABLE_DEBUG_SERIAL`.
 
 ### Docs / Tools
 - Added ArduinoOTA integration and PlatformIO OTA environment; publish retained device IP to `<MQTT_TOPIC>/ip` to simplify OTA targeting.
