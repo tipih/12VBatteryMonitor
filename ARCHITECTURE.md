@@ -118,12 +118,12 @@ Below are compact Mermaid sequence diagrams for the startup flow and the telemet
 
 ```mermaid
 sequenceDiagram
-  participant Main as main()
-  participant NVS as NVS/Preferences
-  participant Sensors as Sensor Drivers
-  participant WiFi as Wi-Fi Manager
-  participant BLE as BLE Manager
-  participant MQTT as MQTT Manager
+  participant Main as Main
+  participant NVS as NVS
+  participant Sensors as Sensors
+  participant WiFi as WiFi
+  participant BLE as BLE
+  participant MQTT as MQTT
 
   Main->>NVS: read persisted settings
   Main->>Sensors: initialize drivers
@@ -139,23 +139,23 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant Loop as Main Loop
-  participant Sensors as Sensor Drivers
-  participant Est as Estimators (SOC/Rint)
-  participant Payload as telemetry_payload
-  participant MQTT as MQTT Manager
-  participant BLE as BLE Manager
-  participant NVS as NVS/Preferences
+  participant MainLoop as MainLoop
+  participant Sensors as Sensors
+  participant Est as Estimators
+  participant Payload as Payload
+  participant MQTT as MQTT
+  participant BLE as BLE
+  participant NVS as NVS
 
-  Loop->>Sensors: sample voltage/current/temp
-  Sensors-->>Loop: readings
-  Loop->>Est: update SOC, SOH, Ah left, Rint
-  Est-->>Loop: updated metrics
-  Loop->>Payload: build telemetry JSON
-  Payload-->>Loop: JSON payload
-  Loop->>MQTT: publish telemetry (retain as configured)
-  Loop->>BLE: notify subscribers
-  Loop->>NVS: persist learned params if changed
+  MainLoop->>Sensors: sample voltage/current/temp
+  Sensors-->>MainLoop: readings
+  MainLoop->>Est: update SOC, SOH, Ah_left, Rint
+  Est-->>MainLoop: updated metrics
+  MainLoop->>Payload: build telemetry JSON
+  Payload-->>MainLoop: JSON payload
+  MainLoop->>MQTT: publish telemetry (retain as configured)
+  MainLoop->>BLE: notify subscribers
+  MainLoop->>NVS: persist learned params if changed
 ```
 
 
