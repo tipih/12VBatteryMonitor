@@ -148,6 +148,7 @@ Key parameters:
   "temp_C": 25.3,
   "soc_pct": 85.0,
   "soh_pct": 97.5,
+  "ah_left": 12.34,
   "Rint_mOhm": 10.5,
   "Rint25_mOhm": 10.2,
   "RintBaseline_mOhm": 10.0,
