@@ -49,8 +49,9 @@ void publishHADiscovery() {
 
   // Voltage
   snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_voltage/config", haId);
+  // Format voltage as a two-decimal float for Home Assistant display (e.g. 12.00)
   snprintf(payload, sizeof(payload),
-    "{\"name\":\"Battery Voltage\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"V\",\"device_class\":\"voltage\",\"value_template\":\"{{ value_json.voltage_V }}\",\"unique_id\":\"%s_voltage\",\"device\":%s}",
+    "{\"name\":\"Battery Voltage\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"V\",\"device_class\":\"voltage\",\"value_template\":\"{{ '%%.2f' | format(value_json.voltage_V) }}\",\"unique_id\":\"%s_voltage\",\"device\":%s}",
     base, haId, deviceJson);
   mqtt.publish(topic, payload, true);
 
