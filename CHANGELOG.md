@@ -2,6 +2,28 @@
 
 All notable changes to the 12V Battery Monitor project.
 
+## [2026-01-08] - 2026-01-08
+
+### Added
+- BLE textual commands `SET_CAP` and `SET_BASE` (queued, processed in main loop) to set runtime battery capacity (Ah) and Rint baseline (mΩ); `NVS_TEST` probe command for verifying NVS writes.
+- BLE characteristics: `chCapacity` (battery capacity), `chStatus` (headless status notifications), and `chAhLeft` (remaining Ah) with read/notify support.
+- `BatteryConfig` helper and short NVS keys (`bat_cap`, `bat_cap2`) to robustly persist battery capacity and avoid `KEY_TOO_LONG` errors.
+- Ah-left telemetry field (`ah_left`) included in telemetry JSON, exposed over BLE and published via MQTT; Home Assistant discovery config for `Battery Ah Left` (two-decimal formatting, unit `Ah`).
+- Adaptive complementary SOC filter that blends coulomb-counted SOC and OCV-derived SOC based on rest time; blended SOC used for Ah-left calculation and persisted when corrected.
+- Advertising watchdog and BLE stability improvements (move heavy NVS/restart ops out of NimBLE callbacks, queue commands).
+
+### Changed
+- Telemetry now includes `ah_left` and uses blended SOC for publish and snapshot paths.
+- MQTT Home Assistant discovery refreshed on reconnect and now includes the Ah_left sensor discovery payload.
+
+### Fixed
+- Fixed `KEY_TOO_LONG` NVS failures by shortening keys and centralizing persistence.
+- Prevented NimBLE blocking by enqueuing writes and processing heavy commands from the main loop.
+
+### Files touched (high level)
+- `src/main.cpp`, `src/comms/ble_mgr.*`, `src/telemetry_payload.*`, `src/app_config.*`, `src/learner/*`, `CHANGELOG.md`, `platformio.ini`
+
+
 ## [2026-01-07] - 2026-01-07
 
 ### Added

@@ -13,12 +13,13 @@ struct BleHandles {
   NimBLECharacteristic* chSOH{ nullptr };
   NimBLECharacteristic* chCapacity{ nullptr };
   NimBLECharacteristic* chStatus{ nullptr };
+  NimBLECharacteristic* chAhLeft{ nullptr };
 };
 
 class BleMgr {
 public:
   void begin(const char* deviceName);
-  void update(float V, float I, float T, const char* mode, float soc_pct, float soh_pct);
+  void update(float V, float I, float T, const char* mode, float soc_pct, float soh_pct, float ah_left);
   enum PendingCommand : uint8_t { CMD_NONE = 0, CMD_CLEAR_NVM, CMD_RESET, CMD_CLEAR_RESET, CMD_SET_CAP, CMD_SET_BASE, CMD_NVS_TEST };
   void enqueueCommand(PendingCommand cmd, float param = NAN) { _pendingCommand = (uint8_t)cmd; _pendingParam = param; }
   void process();

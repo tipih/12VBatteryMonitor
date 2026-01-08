@@ -37,11 +37,11 @@ bool buildTelemetryJson(const TelemetryFrame& f, char* out, size_t outLen) {
 int n = snprintf(
   out, outLen,
   "{\"mode\":\"%s\",\"voltage_V\":%.3f,\"current_A\":%.3f,\"temp_C\":%s,"
-  "\"soc_pct\":%.1f,\"soh_pct\":%s,"
+  "\"soc_pct\":%.1f,\"soh_pct\":%s,\"ah_left\":%.3f,"
   "\"Rint_mOhm\":%s,\"Rint25_mOhm\":%s,\"RintBaseline_mOhm\":%.2f,"
   "\"alternator_on\":%s,\"rest_s\":%u,\"lowCurrentAccum_s\":%u,\"up_ms\":%lu}",
   f.mode, f.V, f.I, tStr,
-  f.soc_pct, sohStr,
+  f.soc_pct, sohStr, f.ah_left,
   rStr, r25Str, f.RintBaseline_mOhm,
   f.alternator_on ? "true" : "false",
   (unsigned)f.rest_s, (unsigned)f.lowCurrentAccum_s, (unsigned long)f.up_ms

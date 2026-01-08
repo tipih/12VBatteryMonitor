@@ -14,6 +14,7 @@
 #include <esp_bt.h>
 #include <algorithm>    // for std::sort (hall zero trimmed mean)
 #include <cstring>      // for strncmp, atoi
+#include <cmath>
 #include <NimBLEDevice.h>
 #include <ArduinoOTA.h>
 #include <app_config.h>
@@ -73,6 +74,14 @@ void publishHADiscovery() {
   snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_soh/config", haId);
   snprintf(payload, sizeof(payload),
     "{\"name\":\"Battery SOH\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"%%\",\"value_template\":\"{{ value_json.soh_pct }}\",\"unique_id\":\"%s_soh\",\"device\":%s}",
+    base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // Ah left (remaining capacity in Ah)
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_ah_left/config", haId);
+  // Format Ah as a two-decimal float for Home Assistant display (e.g. 12.34)
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"Battery Ah Left\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"Ah\",\"value_template\":\"{{ '%%.2f' | format(value_json.ah_left) }}\",\"unique_id\":\"%s_ah_left\",\"device\":%s}",
     base, haId, deviceJson);
   mqtt.publish(topic, payload, true);
 
@@ -158,6 +167,10 @@ Mode mode = MODE_ACTIVE;
 
 // OTA initialization guard
 static bool otaInitialized = false;
+
+// Complementary SOC filter params
+static constexpr float SOC_FILTER_TAU_S = 300.0f; // seconds (time constant toward OCV)
+static constexpr float SOC_MIN_ALPHA = 0.02f;     // minimum weight for coulomb SOC
 
 
 // ------------------------------ OCV → SOC table at 25C ------------------------------
@@ -328,16 +341,31 @@ void setup() {
     float rint_mOhm_f = (isfinite(rint_mOhm) && rint_mOhm <= RINT_MAX_VALID_MOHM) ? rint_mOhm : base_mOhm;
     float rint25_mOhm_f = (isfinite(rint25_mOhm) && rint25_mOhm <= RINT_MAX_VALID_MOHM) ? rint25_mOhm : base_mOhm;
 
+    // Blend SOC with OCV (snapshot uses adaptive complementary filter too)
+    float soc_for_snapshot = soc_pct;
+    if (isfinite(last_V_V) && isfinite(last_T_C)) {
+      float v25 = compensateOCVTo25C(last_V_V, last_T_C);
+      float ocvSOC = socFromOCV_25C(v25);
+      float alpha = SOC_MIN_ALPHA + (1.0f - SOC_MIN_ALPHA) * expf(-rest_accum_s / SOC_FILTER_TAU_S);
+      soc_for_snapshot = alpha * soc_pct + (1.0f - alpha) * ocvSOC;
+    }
+    // Estimate Ah left based on rated capacity, SOH and blended SOC
+    float soh_frac = soh;
+    if (soh_frac > 1.1f) soh_frac /= 100.0f; // guard against percent return
+    float C_eff = batteryCapacityAh * soh_frac; // effective usable Ah
+    float ah_left_snapshot = C_eff * (soc_for_snapshot / 100.0f);
+
 
 
 
     TelemetryFrame tf{
       .mode = "snapshot",
       .V = last_V_V, .I = last_I_A, .T = last_T_C,
-      .soc_pct = soc_pct, .soh_pct = soh * 100.0f,
+      .soc_pct = soc_for_snapshot, .soh_pct = soh * 100.0f,
       .Rint_mOhm = rint_mOhm_f,
       .Rint25_mOhm = rint25_mOhm_f,
       .RintBaseline_mOhm = base_mOhm,
+      .ah_left = ah_left_snapshot,
       .alternator_on = stateDetector.alternatorOn(last_V_V),
       .rest_s = (uint32_t)rest_accum_s,
       .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
@@ -349,8 +377,8 @@ void setup() {
     Serial.printf("V: %.3f V, I: %.3f A, T: %.1f C, SOC: %.1f %%, SOH: %.1f %%\n",
       tf.V, tf.I, tf.T, tf.soc_pct, tf.soh_pct);
 
-    // Update BLE characteristics
-    ble.update(tf.V, tf.I, tf.T, "snapshot", tf.soc_pct, tf.soh_pct);
+    // Update BLE characteristics (include Ah-left)
+    ble.update(tf.V, tf.I, tf.T, "snapshot", tf.soc_pct, tf.soh_pct, tf.ah_left);
     ble.process();
 
     char payload[700];
@@ -378,6 +406,8 @@ void setup() {
   }
 }
 
+
+// (removed duplicate HA discovery block — publishHADiscovery() already publishes Ah_left)
 // ------------------------------ Loop ------------------------------
 void loop() {
 
@@ -512,9 +542,12 @@ void loop() {
       float v25 = compensateOCVTo25C(last_V_V, last_T_C);
       float ocvSOC = socFromOCV_25C(v25);
       float oldSOC = soc_pct;
-      soc_pct = 0.8f * soc_pct + 0.2f * ocvSOC;
-      soc_pct = fmaxf(0.0f, fminf(100.0f, soc_pct));
-      // Save to NVM after OCV correction
+      // Adaptive complementary filter: weight coulomb SOC by alpha that
+      // decreases as rest_accum_s grows (trust OCV more when rested).
+      float alpha = SOC_MIN_ALPHA + (1.0f - SOC_MIN_ALPHA) * expf(-rest_accum_s / SOC_FILTER_TAU_S);
+      float newSoc = alpha * soc_pct + (1.0f - alpha) * ocvSOC;
+      soc_pct = fmaxf(0.0f, fminf(100.0f, newSoc));
+      // Save to NVM after OCV correction if it moved significantly
       if (fabsf(soc_pct - oldSOC) > 0.5f) {
         Preferences prefs;
         prefs.begin("battmon", false);
@@ -592,6 +625,20 @@ void loop() {
     float lastRint_f = (isfinite(lastRint) && lastRint <= RINT_MAX_VALID_MOHM) ? lastRint : baseR;
     float lastRint25_f = (isfinite(lastRint25) && lastRint25 <= RINT_MAX_VALID_MOHM) ? lastRint25 : baseR;
 
+    // Blend SOC with OCV before Ah calculation
+    float soc_for_publish = soc_pct;
+    if (isfinite(last_V_V) && isfinite(last_T_C)) {
+      float v25 = compensateOCVTo25C(last_V_V, last_T_C);
+      float ocvSOC = socFromOCV_25C(v25);
+      float alpha = SOC_MIN_ALPHA + (1.0f - SOC_MIN_ALPHA) * expf(-rest_accum_s / SOC_FILTER_TAU_S);
+      soc_for_publish = alpha * soc_pct + (1.0f - alpha) * ocvSOC;
+    }
+    // Estimate Ah left based on rated capacity, SOH and blended SOC
+    float soh_frac = soh;
+    if (soh_frac > 1.1f) soh_frac /= 100.0f;
+    float C_eff = batteryCapacityAh * soh_frac;
+    float ah_left = C_eff * (soc_for_publish / 100.0f);
+
     Serial.print("Mode: ");
     Serial.print((mode == MODE_ACTIVE) ? "ACTIVE" : "PARKED-IDLE");
     Serial.print(" %, SOH: ");
@@ -608,10 +655,11 @@ void loop() {
     TelemetryFrame tf{
       .mode = (mode == MODE_ACTIVE ? "active" : "parked-idle"),
       .V = last_V_V, .I = last_I_A, .T = last_T_C,
-      .soc_pct = soc_pct, .soh_pct = soh * 100.0f,
+      .soc_pct = soc_for_publish, .soh_pct = soh * 100.0f,
       .Rint_mOhm = lastRint_f,
       .Rint25_mOhm = lastRint25_f,
       .RintBaseline_mOhm = baseR,
+      .ah_left = ah_left,
       .alternator_on = altOn,
       .rest_s = (uint32_t)rest_accum_s,
       .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
@@ -634,7 +682,7 @@ void loop() {
     }
 
 
-    ble.update(last_V_V, last_I_A, last_T_C, tf.mode, soc_pct, soh * 100.0f);
+    ble.update(last_V_V, last_I_A, last_T_C, tf.mode, soc_pct, soh * 100.0f, ah_left);
     ble.process();
 #if DEBUG_POWER_MANAGEMENT
     Serial.print("Voltage:");

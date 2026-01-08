@@ -124,6 +124,7 @@ void BleMgr::begin(const char* deviceName) {
   _handles.chSOH = svc->createCharacteristic("a94f0008-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   _handles.chCapacity = svc->createCharacteristic("a94f0009-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   _handles.chStatus = svc->createCharacteristic("a94f000a-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  _handles.chAhLeft = svc->createCharacteristic("a94f000b-12d3-11ee-be56-0242ac120002", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
   _handles.chVoltage->createDescriptor("2901")->setValue("Battery Voltage (V)");
   _handles.chCurrent->createDescriptor("2901")->setValue("Battery Current (A)");
@@ -134,6 +135,7 @@ void BleMgr::begin(const char* deviceName) {
   _handles.chSOH->createDescriptor("2901")->setValue("State of Health (%)");
   _handles.chCapacity->createDescriptor("2901")->setValue("Battery Capacity (Ah)");
   _handles.chStatus->createDescriptor("2901")->setValue("Device Status");
+  _handles.chAhLeft->createDescriptor("2901")->setValue("Ah Left (Ah)");
   _handles.chCommand->setCallbacks(new CommandCallbacks(this));
 
   _handles.chVoltage->setValue("— V");
@@ -145,6 +147,7 @@ void BleMgr::begin(const char* deviceName) {
   _handles.chSOH->setValue("— %");
   _handles.chCapacity->setValue("— Ah");
   _handles.chStatus->setValue("OK");
+  _handles.chAhLeft->setValue("— Ah");
   svc->start();
 
   NimBLEAdvertisementData advData; advData.setName(deviceName); advData.addServiceUUID("a94f0001-12d3-11ee-be56-0242ac120002");
@@ -158,7 +161,7 @@ void BleMgr::begin(const char* deviceName) {
   DBG_PRINTLN("[BLE] Advertising started");
 }
 
-void BleMgr::update(float V, float I, float T, const char* mode, float soc_pct, float soh_pct) {
+void BleMgr::update(float V, float I, float T, const char* mode, float soc_pct, float soh_pct, float ah_left) {
   if (!_clientConnected) return;
   char bufV[16], bufI[16], bufT[16], bufSOC[16], bufSOH[16];
   snprintf(bufV, sizeof(bufV), "%.2f V", V);
@@ -183,6 +186,12 @@ void BleMgr::update(float V, float I, float T, const char* mode, float soc_pct, 
     snprintf(bufCap, sizeof(bufCap), "%.2f Ah", batteryCapacityAh);
     _handles.chCapacity->setValue(bufCap);
     _handles.chCapacity->notify();
+  }
+  if (_handles.chAhLeft) {
+    char bufAh[16];
+    if (isfinite(ah_left)) snprintf(bufAh, sizeof(bufAh), "%.2f Ah", ah_left); else snprintf(bufAh, sizeof(bufAh), "— Ah");
+    _handles.chAhLeft->setValue(bufAh);
+    _handles.chAhLeft->notify();
   }
 }
 
