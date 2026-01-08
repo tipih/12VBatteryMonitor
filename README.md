@@ -160,6 +160,7 @@ Key parameters:
 }
 ```
 ## 🔗 Home Assistant Integration
+<img width="480" height="589" alt="image" src="https://github.com/user-attachments/assets/d3e9bcee-1436-4e59-93e4-8b50853769c7" />
 
 This firmware publishes Home Assistant MQTT discovery payloads (retained) so Home Assistant can auto-discover the device and sensors. Discovery messages are published under topics like:
 
