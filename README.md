@@ -196,9 +196,17 @@ Notes:
 
 ## 🛠 Hardware Needed
 - ESP32 Development Board
+<img width="211" height="177" alt="image" src="https://github.com/user-attachments/assets/3e14cbb5-463d-409c-be5f-ce40efd959da" />
+
 - [INA226 Current/Voltage Sensor](https://www.ti.com/product/INA226)
+<img width="320" height="472" alt="image" src="https://github.com/user-attachments/assets/87fc7bca-a4c2-4a15-8ee1-bfd22abf9493" />
+
 - HSTS016L Hall Sensor (3.3V variant)
+<img width="93" height="135" alt="image" src="https://github.com/user-attachments/assets/50b6d6ef-7d47-49cf-bd10-55df5531f7cf" />
+ 
 - DS18B20 Temperature Sensor
+<img width="175" height="223" alt="image" src="https://github.com/user-attachments/assets/77e1a3d9-ac07-467d-9d61-6f986e013ed2" />
+
 - Pull-up resistor for DS18B20 (4.7kΩ)
 - Automotive-grade wiring and connectors
 - Buck converter for 12V -> 3.3 Volt
