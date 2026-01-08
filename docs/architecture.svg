@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="640" viewBox="0 0 1000 640">
+  <style>
+    .box { fill:#f7f9fc; stroke:#2b6cb0; stroke-width:2; rx:8; }
+    .title { font: 600 16px/1.2 "Segoe UI", Arial, sans-serif; fill:#0b3b69 }
+    .label { font: 14px/1.2 "Segoe UI", Arial, sans-serif; fill:#102a43 }
+    .small { font: 12px/1.2 "Segoe UI", Arial, sans-serif; fill:#223 }
+    .arrow { stroke:#1a365d; stroke-width:2; marker-end:url(#arrowhead); }
+  </style>
+
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1a365d" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="20" y="30" class="title">ESP32 12V Battery Monitor - Architecture</text>
+
+  <!-- Left column: Sensors & Battery -->
+  <rect x="40" y="70" width="220" height="120" class="box" />
+  <text x="60" y="100" class="label">Sensors</text>
+  <text x="60" y="124" class="small">INA226 (I2C)</text>
+  <text x="60" y="144" class="small">Hall sensor (ADC)</text>
+  <text x="60" y="164" class="small">DS18B20</text>
+
+  <rect x="40" y="210" width="220" height="80" class="box" />
+  <text x="60" y="245" class="label">Battery Logic</text>
+  <text x="60" y="265" class="small">OCV estimator / SOC</text>
+  <text x="60" y="285" class="small">Coulomb counter / Ah_left</text>
+
+  <!-- Center: Core -->
+  <rect x="320" y="50" width="360" height="220" class="box" />
+  <text x="340" y="80" class="label">Core</text>
+  <text x="340" y="104" class="small">main.cpp (init / loop)</text>
+  <text x="340" y="124" class="small">state_detector</text>
+  <text x="340" y="144" class="small">telemetry_payload</text>
+  <text x="340" y="164" class="small">rint_learner</text>
+  <text x="340" y="184" class="small">sleep_mgr</text>
+
+  <!-- Right column: Comms & Persistence -->
+  <rect x="720" y="60" width="220" height="120" class="box" />
+  <text x="740" y="90" class="label">Comms</text>
+  <text x="740" y="114" class="small">Wi‑Fi / mqtt_mgr</text>
+  <text x="740" y="134" class="small">BLE / ble_mgr</text>
+  <text x="740" y="154" class="small">Debug publisher</text>
+
+  <rect x="720" y="210" width="220" height="80" class="box" />
+  <text x="740" y="245" class="label">Persistence</text>
+  <text x="740" y="265" class="small">NVS / Preferences</text>
+
+  <!-- Arrows: Sensors -> Core -->
+  <line x1="260" y1="130" x2="320" y2="130" class="arrow" />
+  <line x1="260" y1="250" x2="320" y2="180" class="arrow" />
+
+  <!-- Core -> Comms -->
+  <line x1="680" y1="110" x2="720" y2="110" class="arrow" />
+
+  <!-- Core -> Persistence -->
+  <line x1="640" y1="230" x2="720" y2="230" class="arrow" />
+
+  <!-- Comms -> MQTT (outside) note -->
+  <rect x="560" y="320" width="320" height="60" rx="8" fill="#fff9db" stroke="#d97706" stroke-width="1.5" />
+  <text x="580" y="350" class="small">External: MQTT broker / Home Assistant</text>
+  <line x1="840" y1="180" x2="720" y2="320" class="arrow" />
+
+  <!-- Legend -->
+  <rect x="40" y="360" width="900" height="260" rx="6" fill="#ffffff" stroke="#e2e8f0" />
+  <text x="60" y="390" class="label">Legend</text>
+  <text x="60" y="414" class="small">- Core: orchestration, estimators, loop</text>
+  <text x="60" y="434" class="small">- Sensors: physical drivers providing samples</text>
+  <text x="60" y="454" class="small">- Comms: Wi‑Fi/MQTT, BLE (discovery + telemetry)</text>
+  <text x="60" y="474" class="small">- Persistence: NVS keys for capacity / Rint baselines</text>
+
+</svg>
