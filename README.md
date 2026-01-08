@@ -159,6 +159,30 @@ Key parameters:
   "hasRint25": true
 }
 ```
+## 🔗 Home Assistant Integration
+
+This firmware publishes Home Assistant MQTT discovery payloads (retained) so Home Assistant can auto-discover the device and sensors. Discovery messages are published under topics like:
+
+- `homeassistant/sensor/Toyota_batt_sensor_<sensor>/config`
+
+The following sensors are published and mapped to fields in the JSON telemetry payload:
+
+- `voltage_V` → Battery Voltage (V)
+- `current_A` → Battery Current (A)
+- `soc_pct` → State of Charge (%)
+- `soh_pct` → State of Health (%)
+- `Rint_mOhm` / `RintBaseline_mOhm` → Internal resistance (mΩ)
+- `ah_left` → Remaining amp-hours (Ah) — formatted to two decimal places for HA display
+- `alternator_on` → Alternator state (binary)
+- `mode` → `active` / `parked-idle`
+- `up_ms` → Uptime (ms)
+
+Notes:
+
+- Discovery payloads are retained so Home Assistant will keep the entity definitions after a restart. The device also republishes discovery messages on MQTT reconnect.
+- The `ah_left` sensor is published with two-decimal formatting (e.g. `12.34`) for human-friendly display in Home Assistant.
+- If Home Assistant does not auto-discover the device, ensure MQTT integration is configured and that the broker user has permission to publish/subscribe to `homeassistant/#`.
+
 
 ## 📱 BLE Monitoring
 - Device name: `ESP32-BattMon`
