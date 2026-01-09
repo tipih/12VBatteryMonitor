@@ -108,6 +108,7 @@ jobs:
     
     - name: Check for large files
       run: |
+        # Warning only - large files may be legitimate (e.g., documentation images)
         large_files=$(find . -type f -size +1M -not -path "./.git/*" -not -path "./.pio/*")
         if [ -n "$large_files" ]; then
           echo "Warning: Large files found:"
