@@ -30,6 +30,12 @@ Thanks for your interest in contributing! Contributions small and large are welc
 pio run
 ```
 
+- Run native unit tests locally:
+
+```bash
+pio test -e native
+```
+
 - Run upload/test steps you typically use (USB or OTA):
 
 ```bash
@@ -38,7 +44,11 @@ pio run --target upload
 pio run -e firebeatleV2_ota -t upload --upload-port <device-ip>
 ```
 
-- Run any unit tests or checks if added in the future.
+- All pull requests automatically run through our CI pipeline which includes:
+  - Firmware build verification
+  - Native unit tests
+  - Code quality checks
+  - Secrets file verification
 
 ## Coding Style
 
@@ -48,6 +58,8 @@ pio run -e firebeatleV2_ota -t upload --upload-port <device-ip>
 ## PR Checklist
 
 - [ ] Code builds without errors (`pio run`).
+- [ ] Native tests pass (`pio test -e native`).
+- [ ] CI pipeline passes (automatically checked on PR).
 - [ ] Changes include a short description and reasoning in the PR body.
 - [ ] Sensitive information (passwords, keys) is not committed — use `secrets.h` excluded from source control.
 - [ ] Update documentation (`README.md` or `docs/`) if the change affects usage.

@@ -5,6 +5,7 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -88,3 +89,43 @@ jobs:
         name: test-results
         path: .pio/build/native/
         retention-days: 30
+
+  check:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check for secrets file in repo
+      run: |
+        if [ -f "src/secret.h" ]; then
+          echo "ERROR: src/secret.h should not be committed!"
+          exit 1
+        fi
+        echo "✓ No secrets file found in repository"
+    
+    - name: Check for large files
+      run: |
+        large_files=$(find . -type f -size +1M -not -path "./.git/*" -not -path "./.pio/*" || true)
+        if [ -n "$large_files" ]; then
+          echo "Warning: Large files found:"
+          echo "$large_files"
+        fi
+    
+    - name: Verify required files exist
+      run: |
+        required_files=(
+          "platformio.ini"
+          "secrets.example.h"
+          "README.md"
+          "LICENSE"
+        )
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "ERROR: Required file missing: $file"
+            exit 1
+          fi
+        done
+        echo "✓ All required files present"
