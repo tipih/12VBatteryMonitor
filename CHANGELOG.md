@@ -2,6 +2,23 @@
 
 All notable changes to the 12V Battery Monitor project.
 
+## [Unreleased]
+
+### Added
+- Comprehensive native unit testing infrastructure with Unity framework (69 tests, all passing)
+  - Test modules: rint_learner, ocv_estimator, state_detector, battery_config, sleep_mgr, telemetry_payload
+  - Mock implementations for Arduino, ESP32, Preferences, WiFi, BLE dependencies
+  - Edge case tests for millis() rollover, extreme temperatures, division by zero, infinity handling
+  - Tests run on PC without ESP32 hardware for rapid feedback
+
+### Changed
+- Restructured `platformio.ini` with `[common]` section to support native test environment alongside ESP32 builds
+- Enhanced telemetry JSON builder with comprehensive `isfinite()` checks on all numeric fields to prevent invalid JSON from sensor errors
+
+### Fixed
+- Added infinity value protection in telemetry serialization (voltage, current, SOC, SOH, ah_left)
+- Added NAN temperature handling in Rint temperature compensation
+
 ## [v1.0.0] - 2026-01-09
 
 ### Added
