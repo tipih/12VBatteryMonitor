@@ -2,6 +2,23 @@
 
 All notable changes to the 12V Battery Monitor project.
 
+## [v1.0.0] - 2026-01-09
+
+### Added
+- OTA support (ArduinoOTA) and a PlatformIO OTA environment (`firebeatleV2_ota`) for in-network firmware uploads.
+- BLE textual commands `SET_CAP` and `SET_BASE` with a read/notify `chCapacity` characteristic and queued, safe processing.
+- MQTT telemetry improvements: `ah_left` field, Home Assistant discovery payloads (retained), and retained device IP publish to simplify OTA targeting.
+- Runtime persistence for battery capacity and Rint baseline via NVS (`battery_capacity_Ah`, `rintBase_mR`).
+- Rint learner improvements and SOC blending (OCV + coulomb) for more accurate `ah_left` and SOH estimation.
+
+### Fixed
+- Resolved `KEY_TOO_LONG` NVS failures by shortening keys and centralizing persistence.
+- Prevented NimBLE blocking by moving heavy NVS and restart operations out of BLE callbacks.
+- Various build and stability fixes across BLE, telemetry, and learner code.
+
+### Notes
+- See the detailed Unreleased entries below for file-level changes and technical details.
+
 ## [2026-01-08] - 2026-01-08
 
 ### Added
