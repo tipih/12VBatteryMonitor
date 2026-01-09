@@ -87,10 +87,16 @@ pio test -e native -v
 # Check if secrets file exists (should not be in repo)
 if [ -f "src/secret.h" ]; then
   echo "ERROR: src/secret.h should not be committed!"
+  exit 1
 fi
+echo "✓ No secrets file found"
 
 # Check for large files
-find . -type f -size +1M -not -path "./.git/*" -not -path "./.pio/*"
+large_files=$(find . -type f -size +1M -not -path "./.git/*" -not -path "./.pio/*")
+if [ -n "$large_files" ]; then
+  echo "Warning: Large files found:"
+  echo "$large_files"
+fi
 ```
 
 ## Artifacts
