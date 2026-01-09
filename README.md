@@ -84,6 +84,17 @@ Keep wiring short and use proper gauge for automotive experiments.
 - INA226 uses I²C bus (SDA/SCL).
 - Hall sensor requires stable reference voltage (Vref).
 
+## Installation
+
+- Install Visual Studio Code and the PlatformIO extension (recommended).
+
+- Or install PlatformIO Core (CLI):
+  ```bash
+  python -m pip install -U platformio
+  ```
+
+- Ensure the PlatformIO extension has finished installing required libraries referenced in `platformio.ini`.
+
 ## 🚀 Build Instructions (PlatformIO)
 1. Clone this repository:
    ```bash
@@ -99,6 +110,25 @@ Keep wiring short and use proper gauge for automotive experiments.
    ```bash
    pio run --target upload
    ```
+
+## Usage Examples
+
+- Flash from PlatformIO (USB):
+  ```bash
+  pio run --target upload
+  ```
+
+- OTA update (same LAN):
+  ```bash
+  pio run -e firebeatleV2_ota -t upload --upload-port 192.168.0.132 --upload-flags="--auth=OTAsecret"
+  ```
+
+- Configure Wi‑Fi and MQTT:
+  1. Copy `secrets.example.h` to `secrets.h`.
+  2. Edit `secrets.h` with your Wi‑Fi and MQTT credentials.
+
+
+- View telemetry (MQTT): subscribe to the configured telemetry topic to receive JSON payloads (see the `MQTT Telemetry Example` section).
 
 ## **OTA (Over-The-Air) Updates**
 
