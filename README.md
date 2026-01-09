@@ -97,6 +97,8 @@ Keep wiring short and use proper gauge for automotive experiments.
 
 - Ensure the PlatformIO extension has finished installing required libraries referenced in `platformio.ini`.
 
+> **Note:** This project includes automated CI/CD via GitHub Actions. See [CI Documentation](docs/CI.md) for details on the build pipeline, testing, and releases.
+
 ## 🚀 Build Instructions (PlatformIO)
 1. Clone this repository:
    ```bash
