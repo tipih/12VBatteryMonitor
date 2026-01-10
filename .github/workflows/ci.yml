@@ -79,15 +79,67 @@ jobs:
         python -m pip install --upgrade pip
         pip install platformio
     
-    - name: Run native tests
-      run: pio test -e native -v 2>&1 | tee test_output.txt
+    - name: Install coverage tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lcov
     
-    - name: Upload test results
+    - name: Run native tests with coverage
+      run: |
+        pio test -e native -v 2>&1 | tee test_output.txt
+    
+    - name: Publish test summary
+      if: always()
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "test_output.txt" ]; then
+          # Extract test summary from output
+          if grep -q "PASSED" test_output.txt; then
+            echo "✅ **Tests Status:** PASSED" >> $GITHUB_STEP_SUMMARY
+          elif grep -q "FAILED" test_output.txt; then
+            echo "❌ **Tests Status:** FAILED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Tests Status:** UNKNOWN" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Output:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -n 50 test_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ No test output file found" >> $GITHUB_STEP_SUMMARY
+        fi
+    
+    - name: Generate coverage report
+      if: always()
+      run: |
+        if [ -d ".pio/build/native" ]; then
+          lcov --capture --directory .pio/build/native --output-file coverage.info --no-external || echo "Coverage generation skipped"
+          lcov --list coverage.info || echo "No coverage data available"
+        fi
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        files: ./coverage.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    
+    - name: Upload coverage artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: test-results
-        path: test_output.txt
+        name: coverage-report
+        path: |
+          coverage.info
+          test_output.txt
         retention-days: 30
 
   check:
@@ -132,3 +184,53 @@ jobs:
           fi
         done
         echo "✓ All required files present"
+
+  lint:
+    name: C++ Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install clang-format
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format
+    
+    - name: Check C++ formatting
+      run: |
+        echo "Checking C++ code formatting..."
+        find src test -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | while read file; do
+          if ! clang-format --dry-run --Werror "$file" 2>/dev/null; then
+            echo "❌ Formatting issues found in: $file"
+            echo "Run 'clang-format -i $file' to fix"
+            exit 1
+          fi
+        done
+        echo "✓ All files are properly formatted"
+    
+    - name: Run cppcheck static analysis
+      run: |
+        sudo apt-get install -y cppcheck
+        echo "Running static analysis..."
+        cppcheck --enable=warning,performance,portability \
+                 --inline-suppr \
+                 --suppress=missingIncludeSystem \
+                 --error-exitcode=0 \
+                 --std=c++11 \
+                 src/ 2>&1 | tee cppcheck-report.txt
+        
+        if grep -q "(error)" cppcheck-report.txt; then
+          echo "❌ Critical issues found"
+          exit 1
+        fi
+        echo "✓ Static analysis passed"
+    
+    - name: Upload lint results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: lint-results
+        path: cppcheck-report.txt
+        retention-days: 30
