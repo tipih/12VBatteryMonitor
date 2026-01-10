@@ -3,7 +3,7 @@
 
 // Mock Arduino dependencies
 #define isfinite std::isfinite
-#define fabsf std::fabsf
+#define fabsf std::fabs
 
 // Constants from app_config.h
 #define ALT_ON_VOLTAGE_V 13.2f
