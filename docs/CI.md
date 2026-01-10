@@ -21,8 +21,12 @@ Runs on every push to `main` and `develop` branches, and on all pull requests.
 #### Run Unit Tests
 - Checks out code
 - Sets up Python and PlatformIO
-- Runs native unit tests using the `native` environment
-- Uploads test results as artifact (retained for 30 days)
+- Installs code coverage tools (lcov)
+- Runs native unit tests using the `native` environment with coverage
+- Publishes test summary to GitHub Actions summary page
+- Generates coverage report using lcov
+- Uploads coverage to Codecov
+- Uploads coverage report and test results as artifacts (retained for 30 days)
 - Tests always run (even if other jobs fail)
 
 #### Code Quality Checks
@@ -30,6 +34,14 @@ Runs on every push to `main` and `develop` branches, and on all pull requests.
 - Checks for large files that shouldn't be in the repository
 - Verifies all required files are present
 - Fast execution (no dependencies to install)
+
+#### C++ Linting
+- Checks out code
+- Installs clang-format and cppcheck
+- Checks C++ code formatting with clang-format
+- Runs cppcheck static analysis for warnings, performance, and portability issues
+- Uploads lint results as artifact (retained for 30 days)
+- Helps maintain code quality and consistency
 
 **Triggers:**
 - Push to `main` or `develop` branches
@@ -39,6 +51,17 @@ Runs on every push to `main` and `develop` branches, and on all pull requests.
 **Caching:**
 - PlatformIO dependencies and build artifacts are cached
 - Separate caches for build and test jobs for optimal performance
+
+**Code Coverage:**
+- Code coverage is measured using lcov and reported to Codecov
+- Coverage data is available as a downloadable artifact
+- Codecov integration requires setting up a `CODECOV_TOKEN` repository secret
+- To set up Codecov:
+  1. Sign up at https://codecov.io with your GitHub account
+  2. Add your repository to Codecov
+  3. Copy the Codecov token
+  4. Go to GitHub repository Settings → Secrets and variables → Actions
+  5. Add a new secret named `CODECOV_TOKEN` with the token value
 
 ### 2. Release Workflow (`.github/workflows/release.yml`)
 
@@ -60,8 +83,11 @@ Runs when a new release is created or a version tag is pushed.
 ## Viewing CI Status
 
 ### Status Badge
-The README displays a CI status badge showing the current build status:
+The README displays status badges showing the current build status, code coverage, and license:
+
 [![CI](https://github.com/tipih/12VBatteryMonitor/actions/workflows/ci.yml/badge.svg)](https://github.com/tipih/12VBatteryMonitor/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/tipih/12VBatteryMonitor/branch/main/graph/badge.svg)](https://codecov.io/gh/tipih/12VBatteryMonitor)
+[![License](https://img.shields.io/github/license/tipih/12VBatteryMonitor)](LICENSE)
 
 ### GitHub Actions Tab
 1. Navigate to the "Actions" tab in the GitHub repository
@@ -80,6 +106,37 @@ pio run -e firebeatleV2
 ### Run Unit Tests
 ```bash
 pio test -e native -v
+```
+
+### Run Code Coverage Locally
+```bash
+# Install lcov (Ubuntu/Debian)
+sudo apt-get install lcov
+
+# Run tests with coverage
+pio test -e native -v
+
+# Generate coverage report
+lcov --capture --directory .pio/build/native --output-file coverage.info --no-external
+lcov --list coverage.info
+```
+
+### Run C++ Linting Locally
+```bash
+# Install tools (Ubuntu/Debian)
+sudo apt-get install clang-format cppcheck
+
+# Check formatting
+find src test -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | while read file; do
+  clang-format --dry-run --Werror "$file"
+done
+
+# Run static analysis
+cppcheck --enable=warning,performance,portability \
+         --inline-suppr \
+         --suppress=missingIncludeSystem \
+         --std=c++11 \
+         src/
 ```
 
 ### Code Quality Checks
@@ -105,7 +162,8 @@ fi
 CI generates artifacts that can be downloaded:
 
 - **firmware** - Built firmware binary (`.bin` file)
-- **test-results** - Test output and build artifacts from native tests
+- **coverage-report** - Code coverage data (`coverage.info`) and test output
+- **lint-results** - Static analysis report from cppcheck
 
 Artifacts are retained for 30 days and can be downloaded from the workflow run page.
 
@@ -119,9 +177,21 @@ Artifacts are retained for 30 days and can be downloaded from the workflow run p
 
 ### Test Failures
 1. Check the test log in the "Run Unit Tests" job
-2. Review which specific test failed
-3. Run tests locally with `pio test -e native -v`
-4. Fix the failing test or code
+2. Review the test summary in the GitHub Actions summary page
+3. Review which specific test failed
+4. Run tests locally with `pio test -e native -v`
+5. Fix the failing test or code
+
+### Linting Failures
+1. Check the lint log in the "C++ Linting" job
+2. Download the lint-results artifact for detailed cppcheck report
+3. For formatting issues, run `clang-format -i <file>` to auto-fix
+4. For static analysis issues, review and fix the reported code issues
+
+### Coverage Issues
+1. View coverage report on Codecov (linked in README badge)
+2. Download the coverage-report artifact for detailed data
+3. Add tests for uncovered code paths
 
 ### Code Quality Check Failures
 1. **Secrets file detected**: Remove `src/secret.h` from the repository (it should be in `.gitignore`)
