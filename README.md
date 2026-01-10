@@ -241,6 +241,7 @@ Notes:
 - Pull-up resistor for DS18B20 (4.7kΩ)
 - Automotive-grade wiring and connectors
 - Buck converter for 12V -> 3.3 Volt
-
+-
+-
 ## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
