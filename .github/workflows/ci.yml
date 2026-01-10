@@ -11,6 +11,8 @@ jobs:
   build:
     name: Build Firmware
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
     - name: Checkout code
@@ -53,6 +55,8 @@ jobs:
   test:
     name: Run Unit Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
     - name: Checkout code
@@ -145,6 +149,8 @@ jobs:
   check:
     name: Code Quality Checks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
     - name: Checkout code
@@ -188,6 +194,8 @@ jobs:
   lint:
     name: C++ Linting
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
     - name: Checkout code
