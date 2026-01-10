@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-release:
+    name: Build Release Firmware
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install platformio
+    
+    - name: Create secrets file
+      run: |
+        cp secrets.example.h src/secret.h
+    
+    - name: Build firmware for all environments
+      run: |
+        pio run -e firebeatleV2
+        pio run -e firebeatleV2_ota
+    
+    - name: Rename firmware files
+      run: |
+        cp .pio/build/firebeatleV2/firmware.bin firmware-firebeatleV2.bin
+        cp .pio/build/firebeatleV2_ota/firmware.bin firmware-firebeatleV2-ota.bin
+    
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          firmware-firebeatleV2.bin
+          firmware-firebeatleV2-ota.bin
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

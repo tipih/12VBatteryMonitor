@@ -1,5 +1,7 @@
 # ESP32 12V Battery Monitor
 
+[![CI](https://github.com/tipih/12VBatteryMonitor/actions/workflows/ci.yml/badge.svg)](https://github.com/tipih/12VBatteryMonitor/actions/workflows/ci.yml)
+
 ## 📌 Project Overview
 An embedded system for real-time monitoring of a 12V automotive battery using **ESP32** and multiple sensors. The project tracks battery health, estimates State of Charge (SOC) and State of Health (SOH), and provides remote monitoring via MQTT and BLE.
 
@@ -94,6 +96,8 @@ Keep wiring short and use proper gauge for automotive experiments.
   ```
 
 - Ensure the PlatformIO extension has finished installing required libraries referenced in `platformio.ini`.
+
+> **Note:** This project includes automated CI/CD via GitHub Actions. See [CI Documentation](docs/CI.md) for details on the build pipeline, testing, and releases.
 
 ## 🚀 Build Instructions (PlatformIO)
 1. Clone this repository:
