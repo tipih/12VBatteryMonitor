@@ -1,15 +1,20 @@
 #include "wifi_mgr.h"
 
-bool WiFiMgr::connectSmart(const char* ssid, const char* pass, uint32_t cooldownMs, uint8_t maxAttempts) {
-  if (WiFi.status() == WL_CONNECTED) return true;
+bool WiFiMgr::connectSmart(const char *ssid, const char *pass,
+                           uint32_t cooldownMs, uint8_t maxAttempts) {
+  if (WiFi.status() == WL_CONNECTED)
+    return true;
   uint32_t now = millis();
-  if (now - _lastAttemptMs < cooldownMs) { Serial.println("WiFi cooldown, skip."); return false; }
-  
+  if (now - _lastAttemptMs < cooldownMs) {
+    Serial.println("WiFi cooldown, skip.");
+    return false;
+  }
+
   // Ensure WiFi is fully off before starting
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   delay(100);
-  
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, pass);
   uint8_t attempts = 0;
@@ -20,8 +25,7 @@ bool WiFiMgr::connectSmart(const char* ssid, const char* pass, uint32_t cooldown
   Serial.println(pass);
 #endif
 
-  while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts)
-  {
+  while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
 #if debugWiFiMgr
     Serial.print(".");
 #endif
