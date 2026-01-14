@@ -684,7 +684,7 @@ void loop() {
     float C_eff = batteryCapacityAh * soh_frac;
     float ah_left = C_eff * (soc_for_publish / 100.0f);
 
-    Serial.print("Mode: ");
+    Serial.print("Mode:  ");
     Serial.print((mode == MODE_ACTIVE) ? "ACTIVE" : "PARKED-IDLE");
     Serial.print(" %, SOH: ");
     Serial.print(soh * 100.0f);

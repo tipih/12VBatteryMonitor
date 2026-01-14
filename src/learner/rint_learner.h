@@ -23,9 +23,21 @@ public:
       _baseline_mOhm = initialBaseline_mOhm;
       prefs.putFloat("rintBase_mR", _baseline_mOhm);
     }
-    // Load last measured Rint values from NVM
+    // Load last measured Rint values from NVM with validation
     _lastRint_mOhm = prefs.getFloat("lastRint_mR", NAN);
     _lastRint25_mOhm = prefs.getFloat("lastR25_mR", NAN);
+    
+    // Validate loaded Rint25 value: if out of range, reset to avoid SOH corruption
+    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f || 
+        _lastRint25_mOhm > MAX_RINT25_mOHM) {
+      _lastRint25_mOhm = NAN;
+      _lastRint_mOhm = NAN;
+      prefs.putFloat("lastRint_mR", NAN);
+      prefs.putFloat("lastR25_mR", NAN);
+      if (_dbg && _dbg->ok()) {
+        _dbg->send(R"({"event":"rint25_invalid_reset"})", "init");
+      }
+    }
     _lastBaselineUpdateMs = millis();
   }
 
@@ -57,7 +69,8 @@ public:
   }
 
   float currentSOH() const {
-    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f)
+    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f || 
+        _lastRint25_mOhm > MAX_RINT25_mOHM)
       return 1.0f;
     float soh = _baseline_mOhm / _lastRint25_mOhm;
     if (soh < 0.0f)
@@ -84,6 +97,7 @@ private:
   static constexpr float MAX_FALL_PER_HR = 0.004f;
   static constexpr uint32_t MIN_UPDATE_INTERVAL_MS = 10UL * 60UL * 1000UL;
   static constexpr int MED_WINDOW = 7;
+  static constexpr float MAX_RINT25_mOHM = 200.0f; // sanity limit: reject Rint25 > 200mOhm
 
   // ---- State ----
   Sample _rb[RB_CAPACITY];
@@ -306,6 +320,13 @@ private:
     }
     float Tmean = (pre.t + post.t) * 0.5f;
     float R25_mOhm = compTo25C(R_mOhm, Tmean);
+    
+    // Validate temperature-compensated Rint before storing
+    if (!isfinite(R25_mOhm) || R25_mOhm <= 0.0f || R25_mOhm > MAX_RINT25_mOHM) {
+      debugReject("r25_out_of_range", R25_mOhm, MAX_RINT25_mOHM);
+      return;
+    }
+    
     _lastRint_mOhm = R_mOhm;
     _lastRint25_mOhm = R25_mOhm;
     // Save to NVM for persistence across deep sleep
