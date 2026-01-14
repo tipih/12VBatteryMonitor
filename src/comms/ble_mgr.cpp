@@ -1,4 +1,3 @@
-
 #include "ble_mgr.h"
 #include "../learner/rint_learner.h"
 #include <Preferences.h>

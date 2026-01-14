@@ -1,7 +1,7 @@
 
 #include <telemetry_payload.h>
 
-bool buildTelemetryJson(const TelemetryFrame& f, char* out, size_t outLen) {
+bool buildTelemetryJson(const TelemetryFrame &f, char *out, size_t outLen) {
   // Format temperature
   char tStr[16];
   if (isfinite(f.T)) {
@@ -9,7 +9,7 @@ bool buildTelemetryJson(const TelemetryFrame& f, char* out, size_t outLen) {
   } else {
     snprintf(tStr, sizeof(tStr), "null");
   }
-  
+
   // Format Rint
   char rStr[16];
   if (f.hasRint && isfinite(f.Rint_mOhm)) {
@@ -17,7 +17,7 @@ bool buildTelemetryJson(const TelemetryFrame& f, char* out, size_t outLen) {
   } else {
     snprintf(rStr, sizeof(rStr), "null");
   }
-  
+
   // Format Rint25
   char r25Str[16];
   if (f.hasRint25 && isfinite(f.Rint25_mOhm)) {
@@ -25,7 +25,7 @@ bool buildTelemetryJson(const TelemetryFrame& f, char* out, size_t outLen) {
   } else {
     snprintf(r25Str, sizeof(r25Str), "null");
   }
-  
+
   // Format SOH (check for valid value)
   char sohStr[16];
   if (isfinite(f.soh_pct)) {
