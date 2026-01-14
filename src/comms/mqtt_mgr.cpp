@@ -1,9 +1,12 @@
 
 #include "mqtt_mgr.h"
 
-void MqttMgr::setServer(const char* host, uint16_t port) { _client.setServer(host, port); }
+void MqttMgr::setServer(const char *host, uint16_t port) {
+  _client.setServer(host, port);
+}
 
-bool MqttMgr::ensureConnected(const char* clientId, const char* user, const char* pass, uint32_t timeoutMs) {
+bool MqttMgr::ensureConnected(const char *clientId, const char *user,
+                              const char *pass, uint32_t timeoutMs) {
   uint32_t start = millis();
   while (!_client.connected() && millis() - start < timeoutMs) {
     if (_client.connect(clientId, user, pass)) {
@@ -18,7 +21,7 @@ bool MqttMgr::ensureConnected(const char* clientId, const char* user, const char
   return _client.connected();
 }
 
-bool MqttMgr::publish(const char* topic, const char* payload, bool retain) {
+bool MqttMgr::publish(const char *topic, const char *payload, bool retain) {
 #if debugMqttMgr
   Serial.print("Publishing to topic: ");
   Serial.println(topic);
