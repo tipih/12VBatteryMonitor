@@ -4,19 +4,19 @@
 
 class BatteryStateDetector {
 public:
-    // Alternator detection with hysteresis
-    bool alternatorOn(float V);
+  // Alternator detection with hysteresis
+  bool alternatorOn(float V);
 
-    // Step activity detection
-    bool hasRecentActivity(float currentA, uint32_t nowMs);
+  // Step activity detection
+  bool hasRecentActivity(float currentA, uint32_t nowMs);
 
-    void reset();
+  void reset();
 
 private:
-    // Hysteresis state
-    bool _altState = false;
+  // Hysteresis state
+  bool _altState = false;
 
-    // Activity tracking
-    float _prevCurrent = NAN;
-    uint32_t _prevMs = 0;
+  // Activity tracking
+  float _prevCurrent = NAN;
+  uint32_t _prevMs = 0;
 };
