@@ -4,8 +4,8 @@
 
 class BatteryConfig {
 public:
-    void begin();
-    void setCapacity(float ah);
+  void begin();
+  void setCapacity(float ah);
 };
 
 extern BatteryConfig batteryConfig;
