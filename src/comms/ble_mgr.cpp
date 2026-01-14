@@ -1,22 +1,23 @@
 #include "ble_mgr.h"
+#include "../learner/rint_learner.h"
 #include <Preferences.h>
 #include <app_config.h>
 #include <comms/mqtt_mgr.h>
-#include "../learner/rint_learner.h"
 
 // mqtt instance declared in main.cpp
 extern MqttMgr mqtt;
 
 class CommandCallbacks : public NimBLECharacteristicCallbacks {
 public:
-  explicit CommandCallbacks(BleMgr* mgr) : _mgr(mgr) {}
-  void onWrite(NimBLECharacteristic* pCharacteristic,
-               NimBLEConnInfo& connInfo) override {
+  explicit CommandCallbacks(BleMgr *mgr) : _mgr(mgr) {}
+  void onWrite(NimBLECharacteristic *pCharacteristic,
+               NimBLEConnInfo &connInfo) override {
     std::string value = pCharacteristic->getValue();
     DBG_PRINTF("[BLE] Command received (queued): %s\n", value.c_str());
     // Make a case-insensitive copy for command matching
     std::string u = value;
-    for (auto& ch : u) ch = (char)toupper((unsigned char)ch);
+    for (auto &ch : u)
+      ch = (char)toupper((unsigned char)ch);
     // Check for SET_CAP command with a numeric parameter
     if (u.rfind("SET_CAP", 0) == 0) {
       // Accept formats: "SET_CAP:12.5" or "SET_CAP 12.5" or "SET_CAP=12.5"
@@ -27,7 +28,8 @@ public:
       else if (value.size() > 7)
         num = value.substr(7);
       float v = NAN;
-      if (!num.empty()) v = atof(num.c_str());
+      if (!num.empty())
+        v = atof(num.c_str());
       if (isfinite(v) && v > 0.0f) {
         _mgr->enqueueCommand(BleMgr::CMD_SET_CAP, v);
         pCharacteristic->setValue("QUEUED_SET_CAP");
@@ -48,7 +50,8 @@ public:
       else if (value.size() > 9)
         num = value.substr(9);
       float v = NAN;
-      if (!num.empty()) v = atof(num.c_str());
+      if (!num.empty())
+        v = atof(num.c_str());
       if (isfinite(v) && v > 0.0f) {
         _mgr->enqueueCommand(BleMgr::CMD_SET_BASE, v);
         pCharacteristic->setValue("QUEUED_SET_BASE");
@@ -88,18 +91,17 @@ public:
   }
 
 private:
-  BleMgr* _mgr;
+  BleMgr *_mgr;
 };
 
 class ServerCallbacks : public NimBLEServerCallbacks {
 public:
-  explicit ServerCallbacks(BleMgr* mgr) : _mgr(mgr) {}
-  void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
+  explicit ServerCallbacks(BleMgr *mgr) : _mgr(mgr) {}
+  void onConnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo) override {
     _mgr->_clientConnected = true;
     DBG_PRINTLN("[BLE] Client connected");
   }
-  void onDisconnect(NimBLEServer* pServer,
-                    NimBLEConnInfo& connInfo,
+  void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo,
                     int reason) override {
     _mgr->_clientConnected = false;
     DBG_PRINTLN("[BLE] Client disconnected - advertising");
@@ -107,10 +109,10 @@ public:
   }
 
 private:
-  BleMgr* _mgr;
+  BleMgr *_mgr;
 };
 
-void BleMgr::begin(const char* deviceName) {
+void BleMgr::begin(const char *deviceName) {
   NimBLEDevice::init(deviceName);
   NimBLEDevice::setPower(ESP_PWR_LVL_N0);
   _server = NimBLEDevice::createServer();
@@ -189,14 +191,10 @@ void BleMgr::begin(const char* deviceName) {
   DBG_PRINTLN("[BLE] Advertising started");
 }
 
-void BleMgr::update(float V,
-                    float I,
-                    float T,
-                    const char* mode,
-                    float soc_pct,
-                    float soh_pct,
-                    float ah_left) {
-  if (!_clientConnected) return;
+void BleMgr::update(float V, float I, float T, const char *mode, float soc_pct,
+                    float soh_pct, float ah_left) {
+  if (!_clientConnected)
+    return;
   char bufV[16], bufI[16], bufT[16], bufSOC[16], bufSOH[16];
   snprintf(bufV, sizeof(bufV), "%.2f V", V);
   snprintf(bufI, sizeof(bufI), "%.2f A", I);
@@ -255,11 +253,13 @@ void BleMgr::process() {
     }
   }
 
-  if (_pendingCommand == CMD_NONE) return;
+  if (_pendingCommand == CMD_NONE)
+    return;
   uint8_t cmd = _pendingCommand;
   _pendingCommand = CMD_NONE;
 
-  if (!_handles.chCommand) return;
+  if (!_handles.chCommand)
+    return;
 
   if (cmd == CMD_CLEAR_NVM) {
     DBG_PRINTLN("[BLE] Processing CLEAR_NVM (main loop)...");
@@ -311,7 +311,8 @@ void BleMgr::process() {
       // Publish capacity change over MQTT if connected
       if (mqtt.connected()) {
         char js[128];
-        snprintf(js, sizeof(js), "{\"event\":\"cap_set\",\"value_Ah\":%.3f}", v);
+        snprintf(js, sizeof(js), "{\"event\":\"cap_set\",\"value_Ah\":%.3f}",
+                 v);
         mqtt.publish(MQTT_TOPIC, js, true);
         mqtt.loop();
       }
@@ -362,22 +363,25 @@ void BleMgr::process() {
     Preferences prefs2;
     prefs2.begin("battmon", false);
     has = prefs2.isKey("nvs_probe");
-    if (has) rb = prefs2.getUInt("nvs_probe", 0);
+    if (has)
+      rb = prefs2.getUInt("nvs_probe", 0);
     prefs2.end();
 
     char msg[128];
-    snprintf(msg, sizeof(msg),
-             "NVS_TEST: put=%d key=%d wrote=%lu read=%lu", wrote ? 1 : 0,
-             has ? 1 : 0, (unsigned long)probe, (unsigned long)rb);
+    snprintf(msg, sizeof(msg), "NVS_TEST: put=%d key=%d wrote=%lu read=%lu",
+             wrote ? 1 : 0, has ? 1 : 0, (unsigned long)probe,
+             (unsigned long)rb);
     ble_notify_status(msg);
     _handles.chCommand->setValue("NVS_TEST_DONE");
     _handles.chCommand->notify();
   }
 }
 
-void ble_notify_status(const char* msg) {
-  if (!msg) return;
-  if (!ble.handles().chStatus) return;
+void ble_notify_status(const char *msg) {
+  if (!msg)
+    return;
+  if (!ble.handles().chStatus)
+    return;
   ble.handles().chStatus->setValue(msg);
   ble.handles().chStatus->notify();
 }
