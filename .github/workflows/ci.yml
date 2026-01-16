@@ -86,9 +86,12 @@ jobs:
     - name: Install coverage tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y lcov
+        sudo apt-get install -y lcov gcc g++
     
     - name: Run native tests with coverage
+      env:
+        CC: gcc
+        CXX: g++
       run: |
         pio test -e native -v 2>&1 | tee test_output.txt
     
