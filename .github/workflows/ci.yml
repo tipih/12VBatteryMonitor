@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop, codecov ]
+    branches: [ main, develop codecov ]
   pull_request:
     branches: [ main, develop ]
   workflow_dispatch:  # Add this line to enable manual triggers
@@ -110,3 +110,135 @@ jobs:
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Test Output:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -n 50 test_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ No test output file found" >> $GITHUB_STEP_SUMMARY
+        fi
+    
+    - name: Generate coverage report
+      if: always()
+      run: |
+        if [ -d ".pio/build/native" ]; then
+          lcov --capture --directory .pio/build/native --output-file coverage.info --no-external || echo "Coverage generation skipped"
+          lcov --list coverage.info || echo "No coverage data available"
+        fi
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        files: ./coverage.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    
+    - name: Upload coverage artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          coverage.info
+          test_output.txt
+        retention-days: 30
+
+  check:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check for secrets file in repo
+      run: |
+        if [ -f "src/secret.h" ]; then
+          echo "ERROR: src/secret.h should not be committed!"
+          exit 1
+        fi
+        echo "✓ No secrets file found in repository"
+    
+    - name: Check for large files
+      run: |
+        # Warning only - large files may be legitimate (e.g., documentation images)
+        large_files=$(find . -type f -size +1M -not -path "./.git/*" -not -path "./.pio/*")
+        if [ -n "$large_files" ]; then
+          echo "Warning: Large files found:"
+          echo "$large_files"
+        else
+          echo "✓ No large files detected"
+        fi
+    
+    - name: Verify required files exist
+      run: |
+        required_files=(
+          "platformio.ini"
+          "secrets.example.h"
+          "README.md"
+          "LICENSE"
+        )
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "ERROR: Required file missing: $file"
+            exit 1
+          fi
+        done
+        echo "✓ All required files present"
+
+  lint:
+    name: C++ Linting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install clang-format
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format
+    
+    - name: Check C++ formatting
+      run: |
+        echo "Checking C++ code formatting..."
+        find src test -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | while read file; do
+          if ! clang-format --dry-run --Werror "$file" 2>/dev/null; then
+            echo "❌ Formatting issues found in: $file"
+            echo "Run 'clang-format -i $file' to fix"
+            exit 1
+          fi
+        done
+        echo "✓ All files are properly formatted"
+    
+    - name: Run cppcheck static analysis
+      run: |
+        sudo apt-get install -y cppcheck
+        echo "Running static analysis..."
+        cppcheck --enable=warning,performance,portability \
+                 --inline-suppr \
+                 --suppress=missingIncludeSystem \
+                 --error-exitcode=0 \
+                 --std=c++11 \
+                 src/ 2>&1 | tee cppcheck-report.txt
+        
+        if grep -q "(error)" cppcheck-report.txt; then
+          echo "❌ Critical issues found"
+          exit 1
+        fi
+        echo "✓ Static analysis passed"
+    
+    - name: Upload lint results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: lint-results
+        path: cppcheck-report.txt
+        retention-days: 30
