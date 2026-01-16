@@ -4,6 +4,7 @@ This document describes the overall software structure, runtime flow, and integr
 
 **Repository Layout**
 
+
 - **Root:** project configuration and top-level docs (`platformio.ini`, `README.md`).
 - **src/**: firmware source.
   - `main.cpp`: application entry point (initialization, main loop).
