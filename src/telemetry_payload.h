@@ -8,6 +8,7 @@ struct TelemetryFrame {
   float soc_pct, soh_pct;
   float Rint_mOhm, Rint25_mOhm, RintBaseline_mOhm;
   float ah_left;
+  float battery_capacity_ah;
   bool alternator_on;
   uint32_t rest_s, lowCurrentAccum_s, up_ms;
   bool hasRint, hasRint25;

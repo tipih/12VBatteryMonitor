@@ -82,7 +82,7 @@ const uint64_t PARKED_IDLE_MAX_MS =
 
 // Enforce at least this many milliseconds in Parked&Idle before sleeping
 const uint64_t MIN_PARKED_IDLE_BEFORE_SLEEP_MS =
-    10ULL * 60ULL * 1000ULL; // 10 minutes
+    20ULL * 60ULL * 1000ULL; // 20 minutes
 // Deep sleep cadence while parked
 const uint64_t PARKED_WAKE_INTERVAL_US =
     5ULL * 60ULL * 1000000ULL; // 5 min deep sleep

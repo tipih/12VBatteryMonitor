@@ -156,6 +156,17 @@ void publishHADiscovery() {
            "}}\",\"unique_id\":\"%s_uptime\",\"device\":%s}",
            base, haId, deviceJson);
   mqtt.publish(topic, payload, true);
+
+  // Battery Capacity
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_capacity/config",
+           haId);
+  snprintf(payload, sizeof(payload),
+           "{\"name\":\"Battery "
+           "Capacity\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"Ah\","
+           "\"value_template\":\"{{ value_json.battery_capacity_ah "
+           "}}\",\"unique_id\":\"%s_capacity\",\"device\":%s}",
+           base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
 }
 
 #define DEBUG_POWER_MANAGEMENT 1
@@ -407,6 +418,7 @@ void setup() {
         .Rint25_mOhm = rint25_mOhm_f,
         .RintBaseline_mOhm = base_mOhm,
         .ah_left = ah_left_snapshot,
+        .battery_capacity_ah = batteryCapacityAh,
         .alternator_on = stateDetector.alternatorOn(last_V_V),
         .rest_s = (uint32_t)rest_accum_s,
         .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
@@ -705,6 +717,7 @@ void loop() {
         .Rint25_mOhm = lastRint25_f,
         .RintBaseline_mOhm = baseR,
         .ah_left = ah_left,
+        .battery_capacity_ah = batteryCapacityAh,
         .alternator_on = altOn,
         .rest_s = (uint32_t)rest_accum_s,
         .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
