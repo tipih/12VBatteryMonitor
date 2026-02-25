@@ -302,12 +302,22 @@ void test_lower_bound_rint_validation(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.01f, expected_soh, learner.currentSOH());
 
   // Test Case 6: Value at exactly MIN_RINT25_mOHM (boundary test)
-  learner.setMeasuredRint(MIN_RINT25_mOHM, 25.0f);
-  TEST_ASSERT_EQUAL_FLOAT(MIN_RINT25_mOHM, learner.lastRint25_mOhm());
+  // Use a low baseline so that the ratio check (minAcceptable = 7.0*0.4 = 2.8)
+  // does not interfere, isolating the MIN_RINT25_mOHM absolute lower bound.
+  {
+    RintLearnerSimple lowBaseLearner;
+    lowBaseLearner.begin(7.0f);
+    lowBaseLearner.setMeasuredRint(MIN_RINT25_mOHM, 25.0f);
+    TEST_ASSERT_EQUAL_FLOAT(MIN_RINT25_mOHM, lowBaseLearner.lastRint25_mOhm());
+  }
 
   // Test Case 7: Value just below MIN_RINT25_mOHM (should be rejected)
-  learner.setMeasuredRint(MIN_RINT25_mOHM - 0.1f, 25.0f);
-  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm()));
+  {
+    RintLearnerSimple lowBaseLearner;
+    lowBaseLearner.begin(7.0f);
+    lowBaseLearner.setMeasuredRint(MIN_RINT25_mOHM - 0.1f, 25.0f);
+    TEST_ASSERT_TRUE(isnan(lowBaseLearner.lastRint25_mOhm()));
+  }
 }
 
 void test_upper_bound_rint_validation(void) {
