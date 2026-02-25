@@ -113,17 +113,10 @@ void publishHADiscovery() {
   snprintf(payload, sizeof(payload),
            "{\"name\":\"Rint "
            "(mOhm)\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"mΩ\","
-           "\"value_template\":\"{% if value_json.Rint_mOhm is not none %}{{ "
-           "value_json.Rint_mOhm }}{% else %}{{ value_json.RintBaseline_mOhm "
-           "}}{% endif %}\",\"unique_id\":\"%s_rint\",\"device\":%s}",
+           "\"value_template\":\"{%% if value_json.Rint_mOhm is not none %%}{{ "
+           "value_json.Rint_mOhm }}{%% else %%}{{ value_json.RintBaseline_mOhm "
+           "}}{%% endif %%}\",\"unique_id\":\"%s_rint\",\"device\":%s}",
            base, haId, deviceJson);
-  // Note: the above template uses Jinja; Home Assistant will parse it. If the
-  // template syntax causes issues in the C string on some toolchains you can
-  // simplify to always show RintBaseline.
-  mqtt.publish(topic, payload, true);
-  // Note: the above template uses Jinja; Home Assistant will parse it. If the
-  // template syntax causes issues in the C string on some toolchains you can
-  // simplify to always show RintBaseline.
   mqtt.publish(topic, payload, true);
 
   // Alternator (binary sensor)
