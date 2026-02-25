@@ -77,26 +77,26 @@ public:
   void setMeasuredRint(float rint_mOhm, float temp_c) {
     _lastRint_mOhm = rint_mOhm;
     float r25 = compTo25C(rint_mOhm, temp_c);
-    
+
     // Apply same validation as the real learner
     if (!isfinite(r25) || r25 <= 0.0f || r25 > MAX_RINT25_mOHM) {
       _lastRint25_mOhm = NAN;
       return;
     }
-    
+
     // Reject unrealistically low measurements
     if (r25 < MIN_RINT25_mOHM) {
       _lastRint25_mOhm = NAN;
       return;
     }
-    
+
     // Reject measurements significantly below baseline
     float minAcceptable = _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO;
     if (r25 < minAcceptable) {
       _lastRint25_mOhm = NAN;
       return;
     }
-    
+
     _lastRint25_mOhm = r25;
   }
 
@@ -274,17 +274,17 @@ void test_lower_bound_rint_validation(void) {
   // Test Case 1: Unrealistically low value (< MIN_RINT25_mOHM = 3.0)
   // This simulates the 5.96 mΩ reading from the bug report
   learner.setMeasuredRint(2.5f, 25.0f);
-  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm()));  // Should be rejected
   TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH()); // Should return 100%
 
   // Test Case 2: Value below 40% of baseline (< 14 mΩ for baseline of 35 mΩ)
   // This prevents accepting measurements significantly below baseline
-  learner.setMeasuredRint(10.0f, 25.0f); // Below 40% * 35 = 14 mΩ
+  learner.setMeasuredRint(10.0f, 25.0f);              // Below 40% * 35 = 14 mΩ
   TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
   TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
 
   // Test Case 3: Just above the threshold (should be accepted)
-  learner.setMeasuredRint(15.0f, 25.0f); // Above 14 mΩ threshold
+  learner.setMeasuredRint(15.0f, 25.0f);               // Above 14 mΩ threshold
   TEST_ASSERT_FALSE(isnan(learner.lastRint25_mOhm())); // Should be accepted
   TEST_ASSERT_EQUAL_FLOAT(15.0f, learner.lastRint25_mOhm());
   // SOH = 35/15 = 2.33, capped at 1.0
