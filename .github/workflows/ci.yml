@@ -201,10 +201,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
     - name: Install clang-format
       run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-format
+        pip install clang-format==21.1.8
+        clang-format --version
     
     - name: Check C++ formatting
       run: |
@@ -220,6 +225,7 @@ jobs:
     
     - name: Run cppcheck static analysis
       run: |
+        sudo apt-get update
         sudo apt-get install -y cppcheck
         echo "Running static analysis..."
         cppcheck --enable=warning,performance,portability \
