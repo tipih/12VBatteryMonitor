@@ -35,13 +35,15 @@ public:
       rint25Valid = false;
     }
     // Also check if it's below or above baseline ratio (physically implausible)
-    if (rint25Valid && _lastRint25_mOhm < _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO) {
+    if (rint25Valid &&
+        _lastRint25_mOhm < _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO) {
       rint25Valid = false;
     }
-    if (rint25Valid && _lastRint25_mOhm > _baseline_mOhm * MAX_RINT25_VS_BASELINE_RATIO) {
+    if (rint25Valid &&
+        _lastRint25_mOhm > _baseline_mOhm * MAX_RINT25_VS_BASELINE_RATIO) {
       rint25Valid = false;
     }
-    
+
     if (!rint25Valid) {
       _lastRint25_mOhm = NAN;
       _lastRint_mOhm = NAN;
@@ -121,7 +123,8 @@ private:
   static constexpr float MIN_RINT25_VS_BASELINE_RATIO =
       0.4f; // reject measurements < 40% of baseline (likely bad readings)
   static constexpr float MAX_RINT25_VS_BASELINE_RATIO =
-      2.5f; // reject measurements > 2.5x baseline (likely measurement artifacts during cranking/high loads)
+      2.5f; // reject measurements > 2.5x baseline (likely measurement artifacts
+            // during cranking/high loads)
 
   // ---- State ----
   Sample _rb[RB_CAPACITY];
