@@ -307,7 +307,8 @@ void test_lower_bound_rint_validation(void) {
   TEST_ASSERT_EQUAL_FLOAT(35.0f, learner.lastRint25_mOhm());
   TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
 
-  // Test Case 5: Degraded battery (high resistance, but within acceptable range)
+  // Test Case 5: Degraded battery (high resistance, but within acceptable
+  // range)
   learner.setMeasuredRint(50.0f, 25.0f); // Below 2.5x baseline (87.5 mΩ)
   TEST_ASSERT_EQUAL_FLOAT(50.0f, learner.lastRint25_mOhm());
   float expected_soh = 35.0f / 50.0f; // 0.70 or 70%
@@ -344,36 +345,39 @@ void test_upper_bound_rint_validation(void) {
   // Test Case 2: Value at MAX_RINT25_mOHM (boundary test)
   // But this is > 2.5x baseline (87.5 mΩ), so should be rejected
   learner.setMeasuredRint(MAX_RINT25_mOHM, 25.0f);
-  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Now rejected by baseline ratio
+  TEST_ASSERT_TRUE(
+      isnan(learner.lastRint25_mOhm())); // Now rejected by baseline ratio
   TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
-  
+
   // Test Case 3: Value above 2.5x baseline (simulates 54.27 mΩ spike)
   // For baseline 35 mΩ, max acceptable = 87.5 mΩ
-  learner.setMeasuredRint(90.0f, 25.0f); // Above 87.5 mΩ threshold
+  learner.setMeasuredRint(90.0f, 25.0f);              // Above 87.5 mΩ threshold
   TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
   TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
-  
+
   // Test Case 4: Value just below 2.5x baseline (should be accepted)
   learner.setMeasuredRint(85.0f, 25.0f); // Below 87.5 mΩ threshold
   TEST_ASSERT_FALSE(isnan(learner.lastRint25_mOhm())); // Should be accepted
   TEST_ASSERT_EQUAL_FLOAT(85.0f, learner.lastRint25_mOhm());
   float expected_soh = 35.0f / 85.0f; // ~0.412 or 41.2%
   TEST_ASSERT_FLOAT_WITHIN(0.01f, expected_soh, learner.currentSOH());
-  
+
   // Test Case 5: Simulate the actual spike from bug report (54.27 mΩ)
   // With baseline 17.53 mΩ, max acceptable = 43.825 mΩ
   learner.setBaseline(17.53f);
-  learner.setMeasuredRint(54.27f, 25.0f); // This was causing SOH to drop to 32.3%
-  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
+  learner.setMeasuredRint(54.27f,
+                          25.0f); // This was causing SOH to drop to 32.3%
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm()));  // Should be rejected
   TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH()); // Should return 100%
-  
+
   // Test Case 6: Value at exactly 2.5x baseline (boundary test)
   learner.setBaseline(35.0f);
   learner.setMeasuredRint(87.5f, 25.0f); // Exactly at threshold
-  TEST_ASSERT_EQUAL_FLOAT(87.5f, learner.lastRint25_mOhm()); // Should be accepted
-  expected_soh = 35.0f / 87.5f; // 0.40 or 40%
+  TEST_ASSERT_EQUAL_FLOAT(87.5f,
+                          learner.lastRint25_mOhm()); // Should be accepted
+  expected_soh = 35.0f / 87.5f;                       // 0.40 or 40%
   TEST_ASSERT_FLOAT_WITHIN(0.01f, expected_soh, learner.currentSOH());
-  
+
   // Test Case 7: Value just above 2.5x baseline (should be rejected)
   learner.setMeasuredRint(87.6f, 25.0f);
   TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
