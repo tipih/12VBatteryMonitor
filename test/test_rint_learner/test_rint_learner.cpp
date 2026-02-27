@@ -23,6 +23,10 @@ public:
 #define ALT_ON_VOLTAGE_V 13.5f
 #define TEMP_ALPHA_PER_C 0.005f
 #define REF_TEMP_C 25.0f
+#define MAX_RINT25_mOHM 200.0f
+#define MIN_RINT25_mOHM 3.0f
+#define MIN_RINT25_VS_BASELINE_RATIO 0.4f
+#define MAX_RINT25_VS_BASELINE_RATIO 2.5f
 
 // Mock DebugPublisher
 class DebugPublisher {
@@ -59,7 +63,12 @@ public:
   }
 
   float currentSOH() const {
-    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f)
+    // Validate Rint25: reject if outside absolute bounds or baseline ratios
+    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm < MIN_RINT25_mOHM ||
+        _lastRint25_mOhm > MAX_RINT25_mOHM)
+      return 1.0f;
+    if (_lastRint25_mOhm < _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO ||
+        _lastRint25_mOhm > _baseline_mOhm * MAX_RINT25_VS_BASELINE_RATIO)
       return 1.0f;
     float soh = _baseline_mOhm / _lastRint25_mOhm;
     if (soh < 0.0f)
@@ -72,7 +81,35 @@ public:
   // Simplified method to set measured values for testing
   void setMeasuredRint(float rint_mOhm, float temp_c) {
     _lastRint_mOhm = rint_mOhm;
-    _lastRint25_mOhm = compTo25C(rint_mOhm, temp_c);
+    float r25 = compTo25C(rint_mOhm, temp_c);
+
+    // Apply same validation as the real learner
+    if (!isfinite(r25) || r25 <= 0.0f || r25 > MAX_RINT25_mOHM) {
+      _lastRint25_mOhm = NAN;
+      return;
+    }
+
+    // Reject unrealistically low measurements
+    if (r25 < MIN_RINT25_mOHM) {
+      _lastRint25_mOhm = NAN;
+      return;
+    }
+
+    // Reject measurements significantly below baseline
+    float minAcceptable = _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO;
+    if (r25 < minAcceptable) {
+      _lastRint25_mOhm = NAN;
+      return;
+    }
+
+    // Reject measurements significantly above baseline (measurement artifacts)
+    float maxAcceptable = _baseline_mOhm * MAX_RINT25_VS_BASELINE_RATIO;
+    if (r25 > maxAcceptable) {
+      _lastRint25_mOhm = NAN;
+      return;
+    }
+
+    _lastRint25_mOhm = r25;
   }
 
 private:
@@ -242,6 +279,111 @@ void test_infinite_rint_values(void) {
   TEST_ASSERT_EQUAL_FLOAT(1.0f, soh);
 }
 
+void test_lower_bound_rint_validation(void) {
+  RintLearnerSimple learner;
+  learner.begin(35.0f); // baseline = 35 mΩ
+
+  // Test Case 1: Unrealistically low value (< MIN_RINT25_mOHM = 3.0)
+  // This simulates the 5.96 mΩ reading from the bug report
+  learner.setMeasuredRint(2.5f, 25.0f);
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm()));  // Should be rejected
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH()); // Should return 100%
+
+  // Test Case 2: Value below 40% of baseline (< 14 mΩ for baseline of 35 mΩ)
+  // This prevents accepting measurements significantly below baseline
+  learner.setMeasuredRint(10.0f, 25.0f);              // Below 40% * 35 = 14 mΩ
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
+
+  // Test Case 3: Just above the threshold (should be accepted)
+  learner.setMeasuredRint(15.0f, 25.0f);               // Above 14 mΩ threshold
+  TEST_ASSERT_FALSE(isnan(learner.lastRint25_mOhm())); // Should be accepted
+  TEST_ASSERT_EQUAL_FLOAT(15.0f, learner.lastRint25_mOhm());
+  // SOH = 35/15 = 2.33, capped at 1.0
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
+
+  // Test Case 4: Normal healthy battery reading
+  learner.setMeasuredRint(35.0f, 25.0f);
+  TEST_ASSERT_EQUAL_FLOAT(35.0f, learner.lastRint25_mOhm());
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
+
+  // Test Case 5: Degraded battery (high resistance, but within acceptable
+  // range)
+  learner.setMeasuredRint(50.0f, 25.0f); // Below 2.5x baseline (87.5 mΩ)
+  TEST_ASSERT_EQUAL_FLOAT(50.0f, learner.lastRint25_mOhm());
+  float expected_soh = 35.0f / 50.0f; // 0.70 or 70%
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, expected_soh, learner.currentSOH());
+
+  // Test Case 6: Value at exactly MIN_RINT25_mOHM (boundary test)
+  // Use a low baseline so that the ratio check (minAcceptable = 7.0*0.4 = 2.8)
+  // does not interfere, isolating the MIN_RINT25_mOHM absolute lower bound.
+  {
+    RintLearnerSimple lowBaseLearner;
+    lowBaseLearner.begin(7.0f);
+    lowBaseLearner.setMeasuredRint(MIN_RINT25_mOHM, 25.0f);
+    TEST_ASSERT_EQUAL_FLOAT(MIN_RINT25_mOHM, lowBaseLearner.lastRint25_mOhm());
+  }
+
+  // Test Case 7: Value just below MIN_RINT25_mOHM (should be rejected)
+  {
+    RintLearnerSimple lowBaseLearner;
+    lowBaseLearner.begin(7.0f);
+    lowBaseLearner.setMeasuredRint(MIN_RINT25_mOHM - 0.1f, 25.0f);
+    TEST_ASSERT_TRUE(isnan(lowBaseLearner.lastRint25_mOhm()));
+  }
+}
+
+void test_upper_bound_rint_validation(void) {
+  RintLearnerSimple learner;
+  learner.begin(35.0f); // baseline = 35 mΩ
+
+  // Test Case 1: Value above MAX_RINT25_mOHM (should be rejected)
+  learner.setMeasuredRint(250.0f, 25.0f);
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm()));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
+
+  // Test Case 2: Value at MAX_RINT25_mOHM (boundary test)
+  // But this is > 2.5x baseline (87.5 mΩ), so should be rejected
+  learner.setMeasuredRint(MAX_RINT25_mOHM, 25.0f);
+  TEST_ASSERT_TRUE(
+      isnan(learner.lastRint25_mOhm())); // Now rejected by baseline ratio
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
+
+  // Test Case 3: Value above 2.5x baseline (simulates 54.27 mΩ spike)
+  // For baseline 35 mΩ, max acceptable = 87.5 mΩ
+  learner.setMeasuredRint(90.0f, 25.0f);              // Above 87.5 mΩ threshold
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
+
+  // Test Case 4: Value just below 2.5x baseline (should be accepted)
+  learner.setMeasuredRint(85.0f, 25.0f); // Below 87.5 mΩ threshold
+  TEST_ASSERT_FALSE(isnan(learner.lastRint25_mOhm())); // Should be accepted
+  TEST_ASSERT_EQUAL_FLOAT(85.0f, learner.lastRint25_mOhm());
+  float expected_soh = 35.0f / 85.0f; // ~0.412 or 41.2%
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, expected_soh, learner.currentSOH());
+
+  // Test Case 5: Simulate the actual spike from bug report (54.27 mΩ)
+  // With baseline 17.53 mΩ, max acceptable = 43.825 mΩ
+  learner.setBaseline(17.53f);
+  learner.setMeasuredRint(54.27f,
+                          25.0f); // This was causing SOH to drop to 32.3%
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm()));  // Should be rejected
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH()); // Should return 100%
+
+  // Test Case 6: Value at exactly 2.5x baseline (boundary test)
+  learner.setBaseline(35.0f);
+  learner.setMeasuredRint(87.5f, 25.0f); // Exactly at threshold
+  TEST_ASSERT_EQUAL_FLOAT(87.5f,
+                          learner.lastRint25_mOhm()); // Should be accepted
+  expected_soh = 35.0f / 87.5f;                       // 0.40 or 40%
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, expected_soh, learner.currentSOH());
+
+  // Test Case 7: Value just above 2.5x baseline (should be rejected)
+  learner.setMeasuredRint(87.6f, 25.0f);
+  TEST_ASSERT_TRUE(isnan(learner.lastRint25_mOhm())); // Should be rejected
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, learner.currentSOH());
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 
@@ -253,6 +395,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_extreme_temperatures);
   RUN_TEST(test_division_by_zero_protection);
   RUN_TEST(test_infinite_rint_values);
+  RUN_TEST(test_lower_bound_rint_validation);
+  RUN_TEST(test_upper_bound_rint_validation);
 
   return UNITY_END();
 }

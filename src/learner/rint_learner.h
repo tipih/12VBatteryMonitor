@@ -29,8 +29,22 @@ public:
 
     // Validate loaded Rint25 value: if out of range, reset to avoid SOH
     // corruption
-    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f ||
+    bool rint25Valid = true;
+    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm < MIN_RINT25_mOHM ||
         _lastRint25_mOhm > MAX_RINT25_mOHM) {
+      rint25Valid = false;
+    }
+    // Also check if it's below or above baseline ratio (physically implausible)
+    if (rint25Valid &&
+        _lastRint25_mOhm < _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO) {
+      rint25Valid = false;
+    }
+    if (rint25Valid &&
+        _lastRint25_mOhm > _baseline_mOhm * MAX_RINT25_VS_BASELINE_RATIO) {
+      rint25Valid = false;
+    }
+
+    if (!rint25Valid) {
       _lastRint25_mOhm = NAN;
       _lastRint_mOhm = NAN;
       prefs.putFloat("lastRint_mR", NAN);
@@ -70,8 +84,12 @@ public:
   }
 
   float currentSOH() const {
-    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm <= 0.0f ||
+    // Validate Rint25: reject if outside absolute bounds or baseline ratios
+    if (!isfinite(_lastRint25_mOhm) || _lastRint25_mOhm < MIN_RINT25_mOHM ||
         _lastRint25_mOhm > MAX_RINT25_mOHM)
+      return 1.0f;
+    if (_lastRint25_mOhm < _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO ||
+        _lastRint25_mOhm > _baseline_mOhm * MAX_RINT25_VS_BASELINE_RATIO)
       return 1.0f;
     float soh = _baseline_mOhm / _lastRint25_mOhm;
     if (soh < 0.0f)
@@ -100,6 +118,13 @@ private:
   static constexpr int MED_WINDOW = 7;
   static constexpr float MAX_RINT25_mOHM =
       200.0f; // sanity limit: reject Rint25 > 200mOhm
+  static constexpr float MIN_RINT25_mOHM =
+      3.0f; // sanity limit: reject Rint25 < 3mOhm (unrealistically low)
+  static constexpr float MIN_RINT25_VS_BASELINE_RATIO =
+      0.4f; // reject measurements < 40% of baseline (likely bad readings)
+  static constexpr float MAX_RINT25_VS_BASELINE_RATIO =
+      2.5f; // reject measurements > 2.5x baseline (likely measurement artifacts
+            // during cranking/high loads)
 
   // ---- State ----
   Sample _rb[RB_CAPACITY];
@@ -326,6 +351,28 @@ private:
     // Validate temperature-compensated Rint before storing
     if (!isfinite(R25_mOhm) || R25_mOhm <= 0.0f || R25_mOhm > MAX_RINT25_mOHM) {
       debugReject("r25_out_of_range", R25_mOhm, MAX_RINT25_mOHM);
+      return;
+    }
+
+    // Reject unrealistically low measurements (likely bad readings)
+    if (R25_mOhm < MIN_RINT25_mOHM) {
+      debugReject("r25_too_low", R25_mOhm, MIN_RINT25_mOHM);
+      return;
+    }
+
+    // Reject measurements significantly below baseline (physically implausible)
+    // A healthy battery's Rint should never be much lower than its baseline
+    float minAcceptable = _baseline_mOhm * MIN_RINT25_VS_BASELINE_RATIO;
+    if (R25_mOhm < minAcceptable) {
+      debugReject("r25_below_baseline", R25_mOhm, minAcceptable);
+      return;
+    }
+
+    // Reject measurements significantly above baseline (measurement artifacts)
+    // Spikes during cranking or high transients can produce false high readings
+    float maxAcceptable = _baseline_mOhm * MAX_RINT25_VS_BASELINE_RATIO;
+    if (R25_mOhm > maxAcceptable) {
+      debugReject("r25_above_baseline", R25_mOhm, maxAcceptable);
       return;
     }
 
