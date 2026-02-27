@@ -113,10 +113,17 @@ void publishHADiscovery() {
   snprintf(payload, sizeof(payload),
            "{\"name\":\"Rint "
            "(mOhm)\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"mΩ\","
-           "\"value_template\":\"{%% if value_json.Rint_mOhm is not none %%}{{ "
-           "value_json.Rint_mOhm }}{%% else %%}{{ value_json.RintBaseline_mOhm "
-           "}}{%% endif %%}\",\"unique_id\":\"%s_rint\",\"device\":%s}",
+           "\"value_template\":\"{% if value_json.Rint_mOhm is not none %}{{ "
+           "value_json.Rint_mOhm }}{% else %}{{ value_json.RintBaseline_mOhm "
+           "}}{% endif %}\",\"unique_id\":\"%s_rint\",\"device\":%s}",
            base, haId, deviceJson);
+  // Note: the above template uses Jinja; Home Assistant will parse it. If the
+  // template syntax causes issues in the C string on some toolchains you can
+  // simplify to always show RintBaseline.
+  mqtt.publish(topic, payload, true);
+  // Note: the above template uses Jinja; Home Assistant will parse it. If the
+  // template syntax causes issues in the C string on some toolchains you can
+  // simplify to always show RintBaseline.
   mqtt.publish(topic, payload, true);
 
   // Alternator (binary sensor)
@@ -147,6 +154,17 @@ void publishHADiscovery() {
            "Uptime\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"s\","
            "\"value_template\":\"{{ (value_json.up_ms / 1000) | int "
            "}}\",\"unique_id\":\"%s_uptime\",\"device\":%s}",
+           base, haId, deviceJson);
+  mqtt.publish(topic, payload, true);
+
+  // Battery Capacity
+  snprintf(topic, sizeof(topic), "homeassistant/sensor/%s_capacity/config",
+           haId);
+  snprintf(payload, sizeof(payload),
+           "{\"name\":\"Battery "
+           "Capacity\",\"state_topic\":\"%s\",\"unit_of_measurement\":\"Ah\","
+           "\"value_template\":\"{{ value_json.battery_capacity_ah "
+           "}}\",\"unique_id\":\"%s_capacity\",\"device\":%s}",
            base, haId, deviceJson);
   mqtt.publish(topic, payload, true);
 }
@@ -400,6 +418,7 @@ void setup() {
         .Rint25_mOhm = rint25_mOhm_f,
         .RintBaseline_mOhm = base_mOhm,
         .ah_left = ah_left_snapshot,
+        .battery_capacity_ah = batteryCapacityAh,
         .alternator_on = stateDetector.alternatorOn(last_V_V),
         .rest_s = (uint32_t)rest_accum_s,
         .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
@@ -698,6 +717,7 @@ void loop() {
         .Rint25_mOhm = lastRint25_f,
         .RintBaseline_mOhm = baseR,
         .ah_left = ah_left,
+        .battery_capacity_ah = batteryCapacityAh,
         .alternator_on = altOn,
         .rest_s = (uint32_t)rest_accum_s,
         .lowCurrentAccum_s = (uint32_t)lowCurrentAccum_s,
